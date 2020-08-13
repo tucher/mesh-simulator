@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+	
+	<title>Mesh simulator</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<!-- <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" /> -->
+	<link href="static/fontawesome/css/fontawesome.css" rel="stylesheet">
+	<link href="static/fontawesome/css/all.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="static/css/leaflet.css" />
+	<script src="static/js/leaflet.js"></script>
+	<!-- <script defer src="static/fontawesome/js/all.js"></script> -->
+
+	<link rel="stylesheet" href="static/css/leaflet.awesome-markers.css">
+	<script src="static/js/leaflet.awesome-markers.js"></script>
+
+
+</head>
+<body style="height: 98vh; min-height: 98vh;">
+
+
+
+<div id="mapid" style="width: 100%; height: 100%;"></div>
+<script>
+	function loadJSON(path, success, error)
+	{
+		var xhr = new XMLHttpRequest();
+		xhr.onreadystatechange = function()
+		{
+			if (xhr.readyState === XMLHttpRequest.DONE) {
+				if (xhr.status === 200) {
+					if (success)
+						success(JSON.parse(xhr.responseText));
+				} else {
+					if (error)
+						error(xhr.status);
+				}
+			}
+		};
+		xhr.open("GET", path, true);
+		xhr.send();
+	}
+	
+	var url = new URL(window.location.href);
+	var centerP = url.searchParams.get("center");
+	var levelP = url.searchParams.get("level");
+
+	var coord = [53.904153, 27.556925];
+	var level = 14;
+	if(centerP) {
+		var t= centerP.split(",")
+		if(t.length == 2) {
+			coord[0] = parseFloat(t[0]);
+			coord[1] = parseFloat(t[1]);
+		}
+	}
+	if(levelP) {
+		level = parseInt(levelP)
+	}
+	var mymap = L.map('mapid');
+	try {
+		mymap.setView(coord, level);
+	} catch(e) {
+		console.log(e)
+		mymap.setView([53.904153, 27.556925], 9);
+	}
+	function updateURL() {
+		var url = window.location.href.split('?')[0];
+		history.replaceState( '' , '', `${url}?center=${mymap.getCenter().lat.toFixed(4)},${mymap.getCenter().lng.toFixed(4)}&level=${mymap.getZoom()}`);
+	}
+	mymap.on("moveend", function () {
+		// console.log(mymap.getCenter());
+		updateURL();
+	});
+	mymap.on("zoomend", function () {
+		// console.log(mymap.getZoom());
+		updateURL();
+	});
+	
+	var url = 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+    L.tileLayer(url, {
+		attribution: 'Map data © <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
+		maxZoom: 18,
+		id: 'styles/klokantech-basic'
+	}).addTo(mymap);
+
+
+	var dateOpts = { hour: 'numeric', minute: 'numeric', second: 'numeric' };
+	var personMarkers = {};
+
+	var connectionsLayer = L.polyline([], {color: 'blue'});
+	connectionsLayer.addTo(mymap);
+	function updater(data) {
+		let graphConnections = [];
+
+		for(let actorId in data.Actors) {
+			var thisData = data.Actors[actorId];
+			if(!thisData) continue;
+
+			for (let peer of thisData.Peers) {
+				graphConnections.push([thisData.Coord,data.Actors[peer].Coord]);
+			}
+			
+			var curEnt = null;
+			if (!personMarkers[actorId]) {
+				var col = "#9649CB";
+				var markerIcon = L.AwesomeMarkers.icon({
+					icon: 'user-circle',
+					markerColor: "red",
+					prefix: 'fa'
+				});
+				curEnt = {
+					color: col,
+					 marker: L.marker(thisData.Coord, {icon: markerIcon})
+				};
+				personMarkers[actorId] = curEnt;
+				 
+
+				curEnt.marker.addTo(mymap);
+				curEnt.marker.bindTooltip(actorId, 
+				{
+					permanent: false, 
+					direction: 'right'
+				});
+				// curEnt.marker.bindPopup(popupHTML);
+			} else {
+				curEnt = personMarkers[actorId];
+			}
+			// var date = new Date(thisData.TS);
+			// var popupHTML = `<b>Последнее обновление</b><br/>${date.toLocaleString('ru-RU', dateOpts)}<br/>`;
+			// for(var k in thisData.Meta) popupHTML += `<b>${k}</b><br/>${thisData.Meta[k]}<br/>`;
+			
+			// curEnt.marker.setPopupContent(popupHTML);
+			curEnt.marker.setLatLng(new L.LatLng(thisData.Coord[0], thisData.Coord[1])); 
+			// if(curEnt.path) {
+			// 	mymap.removeLayer(curEnt.path);
+			// }
+			// var pathCoords = [];
+			// for (var c of thisDataArr) pathCoords.push(c.Coord);
+			// curEnt.path = L.polyline(pathCoords, {color: curEnt.color})
+			// curEnt.path.addTo(mymap);
+		}
+		if(graphConnections.length > 0) {
+			connectionsLayer.setLatLngs(graphConnections);
+		}		
+	}
+	setInterval(()=>{loadJSON('/state_overview', updater, (e)=>{console.log(e);});}, 100);
+
+	let socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws_rpc`);
+	socket.onopen = function(e) {
+		console.log("[open] Connection established");
+		console.log("Sending to server");
+		socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:"bar"}}));
+	};
+	socket.onmessage = function(event) {
+		console.log(`[message] Data received from server: ${event.data}`);
+	};
+	socket.onclose = function(event) {
+		if (event.wasClean) {
+			console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+		} else {
+			// e.g. server process killed or network down
+			// event.code is usually 1006 in this case
+			console.log('[close] Connection died');
+		}
+	};
+
+	socket.onerror = function(error) {
+		console.log(`[error] ${error.message}`);
+	};
+
+	// setInterval(()=>{socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:new Date()}}));}, 300);
+
+</script>
+
+
+
+</body>
+</html>
+

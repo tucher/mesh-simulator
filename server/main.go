@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	crowd "mesh-simulator/crowd_model"
+	mesh_routing "mesh-simulator/mesh_routing"
 )
 
 type config struct {
@@ -64,10 +65,11 @@ func main() {
 	r.Use(cors.Default())
 
 	crowdSimulator := crowd.New(logger)
-	crowdSimulator.AddNPC(10, [2]float64{53.904153, 27.556925})
+	for i := 0; i < 10; i++ {
+		npc := mesh_routing.NewSimplePeer1()
+		crowdSimulator.AddActor(npc, [2]float64{53.904153, 27.556925})
+	}
 	r.GET("/state_overview", func(c *gin.Context) {
-		// ttt := 1 / 0
-		// logger.Println(ttt)
 		logger.Println("here")
 		c.JSON(http.StatusOK, crowdSimulator.GetOverview())
 	})

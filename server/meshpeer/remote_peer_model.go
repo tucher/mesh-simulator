@@ -53,10 +53,10 @@ func (th *RPCPeer) HandleTimeTick(ts meshsim.NetworkTime) {
 	th.sendRPC("tick", tickMsg{int64(ts)})
 }
 func (th *RPCPeer) sendRPC(cmd string, args interface{}) {
-	ba, _ := json.Marshal(args)
-	c := jsonCommand{cmd, ba}
-	b, _ := json.Marshal(c)
-	th.out <- b
+	c := rpcCommand{}
+	c.Cmd = cmd
+	c.SetData(args)
+	th.out <- c.Serialise()
 }
 
 func (th *RPCPeer) sendAnswer(ok bool, args interface{}, err error) {
@@ -76,8 +76,8 @@ func (th *RPCPeer) sendAnswer(ok bool, args interface{}, err error) {
 
 func (th *RPCPeer) run() {
 	for msg := range th.in {
-		cmd := jsonCommand{}
-		if json.Unmarshal(msg, &cmd) != nil {
+		cmd := rpcCommand{}
+		if cmd.Deserialise(msg) != nil {
 			th.logger.Printf("parsing error: %v", msg)
 		}
 		switch cmd.Cmd {
@@ -87,7 +87,7 @@ func (th *RPCPeer) run() {
 				Data   string
 			}
 			args := &msgSend{}
-			if json.Unmarshal(cmd.Data, &args) != nil {
+			if cmd.GetData(&args) != nil {
 				th.logger.Printf("parsing error: %v", msg)
 				th.sendAnswer(false, nil, nil)
 			} else {
@@ -110,15 +110,24 @@ func NewRPCPeer(in chan []byte, out chan []byte, logger *log.Logger) *RPCPeer {
 	return r
 }
 
-type jsonCommand struct {
+type rpcCommand struct {
 	Cmd  string
-	Data json.RawMessage
+	Args json.RawMessage
 }
 
-func (th *jsonCommand) SerData(data interface{}) {
-	th.Data, _ = json.Marshal(data)
+func (th *rpcCommand) SetData(data interface{}) {
+	th.Args, _ = json.Marshal(data)
 }
 
-func (th *jsonCommand) GetData(obj interface{}) error {
-	return json.Unmarshal(th.Data, obj)
+func (th *rpcCommand) GetData(obj interface{}) error {
+	return json.Unmarshal(th.Args, obj)
+}
+
+func (th *rpcCommand) Serialise() []byte {
+	b, _ := json.Marshal(th)
+	return b
+}
+
+func (th *rpcCommand) Deserialise(d []byte) error {
+	return json.Unmarshal(d, th)
 }

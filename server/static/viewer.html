@@ -97,6 +97,11 @@
 	function updater(data) {
 		let graphConnections = [];
 
+		for(let actorId in personMarkers) {
+			if (! data.Actors[actorId]  ) {
+				personMarkers[actorId].marker.remove();
+			}
+		}
 		for(let actorId in data.Actors) {
 			var thisData = data.Actors[actorId];
 			if(!thisData) continue;
@@ -120,29 +125,22 @@
 				personMarkers[actorId] = curEnt;
 				 
 
-				curEnt.marker.addTo(mymap);
+				let layer = curEnt.marker.addTo(mymap);
 				curEnt.marker.bindTooltip(actorId, 
 				{
 					permanent: false, 
 					direction: 'right'
 				});
-				// curEnt.marker.bindPopup(popupHTML);
+				curEnt.marker.bindPopup();
 			} else {
 				curEnt = personMarkers[actorId];
 			}
 			// var date = new Date(thisData.TS);
-			// var popupHTML = `<b>Последнее обновление</b><br/>${date.toLocaleString('ru-RU', dateOpts)}<br/>`;
-			// for(var k in thisData.Meta) popupHTML += `<b>${k}</b><br/>${thisData.Meta[k]}<br/>`;
+			var popupHTML = `<b>${thisData.ID}</b><br/><br/>`;
+			for(var k in thisData.Meta) popupHTML += `<b>${k}</b><br/>${thisData.Meta[k]}<br/>`;
 			
-			// curEnt.marker.setPopupContent(popupHTML);
+			curEnt.marker.setPopupContent(popupHTML);
 			curEnt.marker.setLatLng(new L.LatLng(thisData.Coord[0], thisData.Coord[1])); 
-			// if(curEnt.path) {
-			// 	mymap.removeLayer(curEnt.path);
-			// }
-			// var pathCoords = [];
-			// for (var c of thisDataArr) pathCoords.push(c.Coord);
-			// curEnt.path = L.polyline(pathCoords, {color: curEnt.color})
-			// curEnt.path.addTo(mymap);
 		}
 		if(graphConnections.length > 0) {
 			connectionsLayer.setLatLngs(graphConnections);
@@ -154,18 +152,17 @@
 	let socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws_rpc?lat=53.904153&lon=27.556925`);
 	socket.onopen = function(e) {
 		console.log("[open] Connection established");
-		// console.log("Sending to server");
-		// socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:"bar"}}));
 	};
 	socket.onmessage = function(event) {
-		console.log(`[message] Data received from server: ${event.data}`);
+		let msg = JSON.parse(event.data)
+		if (msg.Cmd == "didReceiveFromPeer") {
+			console.log(`[message from ${msg.Args.PeerID}]: ${msg.Args.Data}`);
+		}
 	};
 	socket.onclose = function(event) {
 		if (event.wasClean) {
 			console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
 		} else {
-			// e.g. server process killed or network down
-			// event.code is usually 1006 in this case
 			console.log('[close] Connection died');
 		}
 	};

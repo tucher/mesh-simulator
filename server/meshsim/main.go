@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 
@@ -139,16 +140,34 @@ func difference(mOld, mNew map[NetworkID]struct{}) (appeared []NetworkID, disapp
 	return
 }
 
-func (s *Simulator) findPeerActorsIDs(id NetworkID) map[NetworkID]struct{} {
+type peerDist struct {
+	D  float64
+	ID NetworkID
+}
+type peerDists []peerDist
 
-	ret := make(map[NetworkID]struct{})
+func (a peerDists) Len() int           { return len(a) }
+func (a peerDists) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a peerDists) Less(i, j int) bool { return a[i].D < a[j].D }
+
+func (s *Simulator) findPeerActorsIDs(id NetworkID, maxDist float64, maxCount int) map[NetworkID]struct{} {
+
+	dists := peerDists{}
 	for pID, a := range s.actors {
 		if pID == id {
 			continue
 		}
-		if distance(s.actors[id].Coord, a.Coord) < 50 {
-			ret[pID] = struct{}{}
+		dist := distance(s.actors[id].Coord, a.Coord)
+
+		if dist < maxDist {
+			dists = append(dists, peerDist{dist, pID})
 		}
+	}
+	sort.Sort(dists)
+	ret := make(map[NetworkID]struct{})
+
+	for i := 0; i < len(dists) && i < maxCount; i++ {
+		ret[dists[i].ID] = struct{}{}
 	}
 
 	return ret
@@ -170,7 +189,7 @@ func (s *Simulator) run() {
 				a.Coord[1] += math.Cos(2*math.Pi*a.randomFreq[i]*s.simTime+a.randomPhase[i]) * a.randomAmpl[i]
 			}
 
-			newPeers := s.findPeerActorsIDs(a.ID)
+			newPeers := s.findPeerActorsIDs(a.ID, 50, 5)
 			appeared, disappeared := difference(a.currentPeers, newPeers)
 			a.actor.HandleTimeTick(NetworkTime(s.simTime * 1000000))
 

@@ -172,6 +172,7 @@ func (s *Simulator) run() {
 
 			newPeers := s.findPeerActorsIDs(a.ID)
 			appeared, disappeared := difference(a.currentPeers, newPeers)
+			a.actor.HandleTimeTick(NetworkTime(s.simTime * 1000000))
 
 			for _, app := range appeared {
 				a.actor.HandleAppearedPeer(app)
@@ -181,8 +182,6 @@ func (s *Simulator) run() {
 				a.actor.HandleDisappearedPeer(dis)
 			}
 			a.currentPeers = newPeers
-
-			a.actor.HandleTimeTick(NetworkTime(s.simTime * 1000000))
 
 			for trgID, msgList := range a.outgoingMsgQueue {
 				if peer, found := s.actors[trgID]; found {

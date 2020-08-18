@@ -110,7 +110,7 @@
 				var col = "#9649CB";
 				var markerIcon = L.AwesomeMarkers.icon({
 					icon: 'user-circle',
-					markerColor: "red",
+					markerColor: thisData.Meta.color?thisData.Meta.color:"red",
 					prefix: 'fa'
 				});
 				curEnt = {
@@ -150,7 +150,7 @@
 	}
 	setInterval(()=>{loadJSON('/state_overview', updater, (e)=>{console.log(e);});}, 300);
 
-/*
+
 	let socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws_rpc?lat=53.904153&lon=27.556925`);
 	socket.onopen = function(e) {
 		console.log("[open] Connection established");
@@ -175,7 +175,7 @@
 	};
 
 	// setInterval(()=>{socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:new Date()}}));}, 300);
-*/
+
 </script>
 
 

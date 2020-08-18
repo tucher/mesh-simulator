@@ -18,4 +18,6 @@ type actorPhysics struct {
 	outgoingMsgQueue map[NetworkID][]NetworkMessage
 
 	mtx *sync.Mutex
+
+	metainfo map[string]interface{}
 }

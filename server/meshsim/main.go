@@ -28,6 +28,7 @@ type actorInfo struct {
 	ID    string
 	Coord [2]float64
 	Peers []string
+	Meta  map[string]interface{}
 }
 
 // Overview stores high level information about current simulation state
@@ -37,7 +38,7 @@ type Overview struct {
 }
 
 // AddActor adds generic peer to simulation and returns it's id
-func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64) (newID NetworkID) {
+func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64, metainfo map[string]interface{}) (newID NetworkID) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -52,6 +53,7 @@ func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64) (newID Netw
 		actor:            actor,
 		outgoingMsgQueue: make(map[NetworkID][]NetworkMessage),
 		mtx:              &sync.Mutex{},
+		metainfo:         metainfo,
 	}
 	for i := 0; i < 3; i++ {
 		na.randomAmpl[i] = rand.Float64() * 0.0002
@@ -97,7 +99,7 @@ func (s *Simulator) GetOverview() Overview {
 		for p := range e.currentPeers {
 			prs = append(prs, string(p))
 		}
-		ret.Actors[string(e.ID)] = actorInfo{string(e.ID), e.Coord, prs}
+		ret.Actors[string(e.ID)] = actorInfo{string(e.ID), e.Coord, prs, e.metainfo}
 	}
 
 	return ret

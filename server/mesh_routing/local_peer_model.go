@@ -1,33 +1,28 @@
 package mesh_routing
 
 import (
-	"github.com/google/uuid"
+	crowd "mesh-simulator/crowd_model"
 )
 
 type SimplePeer1 struct {
-	id string
 }
 
-func (th *SimplePeer1) GetID() string {
-	return th.id
-}
-
-func (th *SimplePeer1) HandleAppearedPeer(id string) {
+func (th *SimplePeer1) HandleAppearedPeer(id crowd.NetworkID) {
 
 }
-func (th *SimplePeer1) HandleDisappearedPeer(id string) {
+func (th *SimplePeer1) HandleDisappearedPeer(id crowd.NetworkID) {
 
 }
-func (th *SimplePeer1) HandleMessage(id string, data []byte) {
+func (th *SimplePeer1) HandleMessage(id crowd.NetworkID, data crowd.NetworkMessage) {
 
 }
-func (th *SimplePeer1) RegisterSendMessageHandler(handler func(id string, data []byte)) {
+func (th *SimplePeer1) RegisterSendMessageHandler(handler func(id crowd.NetworkID, data crowd.NetworkMessage)) {
 
 }
-func (th *SimplePeer1) HandleTimeTick(ts int64) {
+func (th *SimplePeer1) HandleTimeTick(ts crowd.NetworkTime) {
 
 }
 
 func NewSimplePeer1() *SimplePeer1 {
-	return &SimplePeer1{uuid.New().String()}
+	return &SimplePeer1{}
 }

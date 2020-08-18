@@ -6,13 +6,16 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
+// Simulator provides the core for mesh network simulator
 type Simulator struct {
 	logger *log.Logger
 	mtx    *sync.RWMutex
 
-	actors map[string]*ActorPhysics
+	actors map[NetworkID]*actorPhysics
 
 	simTime float64
 
@@ -24,23 +27,28 @@ type actorInfo struct {
 	Coord [2]float64
 	Peers []string
 }
+
+// Overview stores high level information about current simulation state
 type Overview struct {
 	TS     int64
 	Actors map[string]actorInfo
 }
 
-func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64) {
+// AddActor adds generic peer to simulation and returns it's id
+func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64) (newID NetworkID) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	rndLat := rand.NormFloat64() * 0.00045
 	rndLon := rand.NormFloat64() * 0.00045
 
-	na := ActorPhysics{
-		ID:           actor.GetID(),
-		Coord:        [2]float64{placeToAdd[0] + rndLat, placeToAdd[1] + rndLon},
-		currentPeers: make(map[string]struct{}),
-		actor:        actor,
+	newID = NetworkID(uuid.New().String())
+	na := actorPhysics{
+		ID:               newID,
+		Coord:            [2]float64{placeToAdd[0] + rndLat, placeToAdd[1] + rndLon},
+		currentPeers:     make(map[NetworkID]struct{}),
+		actor:            actor,
+		outgoingMsgQueue: make(map[NetworkID][]NetworkMessage),
 	}
 	for i := 0; i < 3; i++ {
 		na.randomAmpl[i] = rand.Float64() * 0.0002
@@ -51,22 +59,27 @@ func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64) {
 	na.startCoord[1] = na.Coord[1]
 
 	s.actors[na.ID] = &na
-	actor.RegisterSendMessageHandler(func(id string, data []byte) {
-		s.mtx.RLock()
-		defer s.mtx.RUnlock()
-
-		if peer, found := s.actors[id]; found {
-			if _, found := na.currentPeers[id]; found {
-				peer.actor.HandleMessage(na.ID, data)
-			}
+	actor.RegisterSendMessageHandler(func(id NetworkID, data NetworkMessage) {
+		if _, ok := na.outgoingMsgQueue[id]; !ok {
+			na.outgoingMsgQueue[id] = []NetworkMessage{}
 		}
+		na.outgoingMsgQueue[id] = append(na.outgoingMsgQueue[id], data)
 	})
+
+	return
 }
 
-func (s *Simulator) Clear() {
+// RemoveActor removes peer from simulation by it's ID
+func (s *Simulator) RemoveActor(id NetworkID) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
+	if _, ok := s.actors[id]; ok {
+		delete(s.actors, id)
+	}
 }
 
+// GetOverview return current state overview
 func (s *Simulator) GetOverview() Overview {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -76,10 +89,10 @@ func (s *Simulator) GetOverview() Overview {
 	ret.TS = time.Now().UnixNano() / 1000000
 	for _, e := range s.actors {
 		prs := []string{}
-		for p, _ := range e.currentPeers {
-			prs = append(prs, p)
+		for p := range e.currentPeers {
+			prs = append(prs, string(p))
 		}
-		ret.Actors[e.ID] = actorInfo{e.ID, e.Coord, prs}
+		ret.Actors[string(e.ID)] = actorInfo{string(e.ID), e.Coord, prs}
 	}
 
 	return ret
@@ -89,7 +102,7 @@ func hsin(theta float64) float64 {
 	return math.Pow(math.Sin(theta/2), 2)
 }
 
-func Distance(latlon1 [2]float64, latlon2 [2]float64) float64 {
+func distance(latlon1 [2]float64, latlon2 [2]float64) float64 {
 	// convert to radians
 	// must cast radius as float to multiply later
 	var la1, lo1, la2, lo2, r float64
@@ -106,15 +119,15 @@ func Distance(latlon1 [2]float64, latlon2 [2]float64) float64 {
 	return 2 * r * math.Asin(math.Sqrt(h))
 }
 
-func difference(m_old, m_new map[string]struct{}) (appeared []string, disappeared []string) {
-	for x, _ := range m_new {
-		if _, found := m_old[x]; !found {
+func difference(mOld, mNew map[NetworkID]struct{}) (appeared []NetworkID, disappeared []NetworkID) {
+	for x := range mNew {
+		if _, found := mOld[x]; !found {
 			appeared = append(appeared, x)
 		}
 	}
 
-	for x, _ := range m_old {
-		if _, found := m_new[x]; !found {
+	for x := range mOld {
+		if _, found := mNew[x]; !found {
 			disappeared = append(disappeared, x)
 		}
 	}
@@ -122,15 +135,15 @@ func difference(m_old, m_new map[string]struct{}) (appeared []string, disappeare
 	return
 }
 
-func (s *Simulator) findPeerActorsIDs(id string) map[string]struct{} {
+func (s *Simulator) findPeerActorsIDs(id NetworkID) map[NetworkID]struct{} {
 
-	ret := make(map[string]struct{})
-	for p_id, a := range s.actors {
-		if p_id == id {
+	ret := make(map[NetworkID]struct{})
+	for pID, a := range s.actors {
+		if pID == id {
 			continue
 		}
-		if Distance(s.actors[id].Coord, a.Coord) < 50 {
-			ret[p_id] = struct{}{}
+		if distance(s.actors[id].Coord, a.Coord) < 50 {
+			ret[pID] = struct{}{}
 		}
 	}
 
@@ -163,17 +176,28 @@ func (s *Simulator) run() {
 			for _, dis := range disappeared {
 				a.actor.HandleDisappearedPeer(dis)
 			}
-
-			a.actor.HandleTimeTick(int64(s.simTime * 1000000))
 			a.currentPeers = newPeers
+
+			a.actor.HandleTimeTick(NetworkTime(s.simTime * 1000000))
+
+			for trgID, msgList := range a.outgoingMsgQueue {
+				if peer, found := s.actors[trgID]; found {
+					if _, found := a.currentPeers[trgID]; found {
+						for _, msg := range msgList {
+							peer.actor.HandleMessage(a.ID, msg)
+						}
+					}
+				}
+			}
 		}
 		s.simTime += dt
 		s.mtx.Unlock()
 	}
 }
 
+// New creates and start new simulation
 func New(logger *log.Logger) *Simulator {
-	n := Simulator{logger, &sync.RWMutex{}, map[string]*ActorPhysics{}, 0, 1}
+	n := Simulator{logger, &sync.RWMutex{}, map[NetworkID]*actorPhysics{}, 0, 1}
 
 	go n.run()
 	return &n

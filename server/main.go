@@ -5,18 +5,18 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/tucher/autosettings"
 
-	"encoding/json"
 	"net/http"
 	"sync"
 
-	crowd "mesh-simulator/crowd_model"
-	mesh_routing "mesh-simulator/mesh_routing"
+	"mesh-simulator/meshpeer"
+	"mesh-simulator/meshsim"
 )
 
 type config struct {
@@ -28,10 +28,9 @@ type config struct {
 
 func (*config) Default() autosettings.Defaultable {
 	return &config{
-		DEBUG:          true,
-		LogFile:        "stdout",
-		HTTPAddress:    "0.0.0.0:8088",
-		HistorySeconds: 60,
+		DEBUG:       true,
+		LogFile:     "stdout",
+		HTTPAddress: "0.0.0.0:8088",
 	}
 }
 
@@ -64,9 +63,9 @@ func main() {
 	r := gin.Default()
 	r.Use(cors.Default())
 
-	crowdSimulator := crowd.New(logger)
+	crowdSimulator := meshsim.New(logger)
 	for i := 0; i < 10; i++ {
-		npc := mesh_routing.NewSimplePeer1()
+		npc := meshpeer.NewSimplePeer1(log.New(os.Stdout, "SIMPLE PEER", log.LstdFlags))
 		crowdSimulator.AddActor(npc, [2]float64{53.904153, 27.556925})
 	}
 	r.GET("/state_overview", func(c *gin.Context) {
@@ -75,9 +74,19 @@ func main() {
 	})
 
 	wsMutex := sync.RWMutex{}
-	allConns := make(map[string]*WSClient)
+	allConns := make(map[string]*wsClient)
 
 	r.GET("/ws_rpc", func(c *gin.Context) {
+		latlon := [2]float64{
+			53.904153,
+			27.556925,
+		}
+		if lat, err := strconv.ParseFloat(c.Query("lat"), 32); err == nil {
+			latlon[0] = lat
+		}
+		if lon, err := strconv.ParseFloat(c.Query("lon"), 32); err == nil {
+			latlon[1] = lon
+		}
 		conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			logger.Println("Failed to set websocket upgrade: ", err)
@@ -85,13 +94,23 @@ func main() {
 			return
 		}
 
-		newConn := WSClient{conn, make(chan jsonCommand)}
+		newConn := &wsClient{
+			conn:       conn,
+			outChannel: make(chan []byte),
+			inChannel:  make(chan []byte),
+		}
+		newConn.meshPeer = meshpeer.NewRPCPeer(newConn.inChannel, newConn.outChannel, log.New(os.Stdout, "RPC PEER", log.LstdFlags))
+		newConn.meshPeerID = crowdSimulator.AddActor(newConn.meshPeer, latlon)
 		wsMutex.Lock()
-		allConns[conn.RemoteAddr().String()] = &newConn
+		allConns[conn.RemoteAddr().String()] = newConn
 		logger.Println("WS connections count: ", len(allConns))
 		wsMutex.Unlock()
 
 		newConn.run(logger)
+
+		close(newConn.inChannel)
+
+		crowdSimulator.RemoveActor(newConn.meshPeerID)
 		wsMutex.Lock()
 		delete(allConns, conn.RemoteAddr().String())
 		logger.Println("WS connections count: ", len(allConns))
@@ -104,29 +123,21 @@ func main() {
 	r.Run(conf.HTTPAddress)
 }
 
-type WSClient struct {
+type wsClient struct {
 	conn       *websocket.Conn
-	outChannel chan jsonCommand
+	outChannel chan []byte
+	inChannel  chan []byte
+
+	meshPeerID meshsim.NetworkID
+	meshPeer   *meshpeer.RPCPeer
 }
 
-type jsonCommand struct {
-	Cmd  string
-	Data json.RawMessage
-}
-
-func (th *jsonCommand) SerData(data interface{}) {
-	th.Data, _ = json.Marshal(data)
-}
-
-func (th *jsonCommand) GetData(obj interface{}) error {
-	return json.Unmarshal(th.Data, obj)
-}
-
-func (cl *WSClient) run(logger *log.Logger) {
+func (cl *wsClient) run(logger *log.Logger) {
 	done := make(chan bool)
 	defer func() {
 		cl.conn.Close()
 		close(done)
+		close(cl.inChannel)
 	}()
 
 	go func() {
@@ -135,39 +146,18 @@ func (cl *WSClient) run(logger *log.Logger) {
 			case <-done:
 				return
 			case n := <-cl.outChannel:
-				cl.conn.WriteJSON(n)
+				cl.conn.WriteMessage(websocket.TextMessage, n)
 			}
 		}
 
 	}()
-
-	// go func() {
-	// 	ticker := time.NewTicker(time.Second)
-	// 	for {
-	// 		select {
-	// 		case <-done:
-	// 			return
-	// 		case <-ticker.C:
-	// 			t := jsonCommand{Cmd: "something_for_client"}
-	// 			t.SerData(map[string]interface{}{"ts": time.Now().Unix()})
-	// 			cl.outChannel <- t
-	// 		}
-	// 	}
-	// }()
 
 	for {
 		_, msg, err := cl.conn.ReadMessage()
 		if err != nil {
 			return
 		}
-		cmd := jsonCommand{}
-		if json.Unmarshal(msg, &cmd) != nil {
-			return
-		}
-		switch cmd.Cmd {
-		default:
-			logger.Printf("WS MESSAGE: %+v", cmd)
-		}
+		cl.inChannel <- msg
 	}
 }
 

@@ -1,4 +1,4 @@
-package crowd
+package meshsim
 
 // NetworkMessage is the lowest level mesh network data package
 type NetworkMessage []byte

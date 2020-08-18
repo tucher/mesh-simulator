@@ -1,4 +1,4 @@
-package crowd
+package meshsim
 
 import (
 	"log"

@@ -148,30 +148,30 @@
 			connectionsLayer.setLatLngs(graphConnections);
 		}		
 	}
-	setInterval(()=>{loadJSON('/state_overview', updater, (e)=>{console.log(e);});}, 100);
+	setInterval(()=>{loadJSON('/state_overview', updater, (e)=>{console.log(e);});}, 300);
 
-	let socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws_rpc`);
-	socket.onopen = function(e) {
-		console.log("[open] Connection established");
-		console.log("Sending to server");
-		socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:"bar"}}));
-	};
-	socket.onmessage = function(event) {
-		console.log(`[message] Data received from server: ${event.data}`);
-	};
-	socket.onclose = function(event) {
-		if (event.wasClean) {
-			console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-		} else {
-			// e.g. server process killed or network down
-			// event.code is usually 1006 in this case
-			console.log('[close] Connection died');
-		}
-	};
+	// let socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws_rpc`);
+	// socket.onopen = function(e) {
+	// 	console.log("[open] Connection established");
+	// 	console.log("Sending to server");
+	// 	socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:"bar"}}));
+	// };
+	// socket.onmessage = function(event) {
+	// 	console.log(`[message] Data received from server: ${event.data}`);
+	// };
+	// socket.onclose = function(event) {
+	// 	if (event.wasClean) {
+	// 		console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+	// 	} else {
+	// 		// e.g. server process killed or network down
+	// 		// event.code is usually 1006 in this case
+	// 		console.log('[close] Connection died');
+	// 	}
+	// };
 
-	socket.onerror = function(error) {
-		console.log(`[error] ${error.message}`);
-	};
+	// socket.onerror = function(error) {
+	// 	console.log(`[error] ${error.message}`);
+	// };
 
 	// setInterval(()=>{socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:new Date()}}));}, 300);
 

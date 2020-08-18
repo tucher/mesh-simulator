@@ -12,12 +12,12 @@ type SimplePeer1 struct {
 
 // HandleAppearedPeer implements crowd.MeshActor
 func (th *SimplePeer1) HandleAppearedPeer(id meshsim.NetworkID) {
-
+	th.logger.Println("APPEARED", id)
 }
 
 // HandleDisappearedPeer implements crowd.MeshActor
 func (th *SimplePeer1) HandleDisappearedPeer(id meshsim.NetworkID) {
-
+	th.logger.Println("DISAPPEARED", id)
 }
 
 // HandleMessage implements crowd.MeshActor

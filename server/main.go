@@ -65,7 +65,7 @@ func main() {
 
 	crowdSimulator := meshsim.New(logger)
 	for i := 0; i < 10; i++ {
-		npc := meshpeer.NewSimplePeer1(log.New(os.Stdout, "SIMPLE PEER", log.LstdFlags))
+		npc := meshpeer.NewSimplePeer1(log.New(os.Stdout, "[SIMPLE PEER] ", log.LstdFlags))
 		crowdSimulator.AddActor(npc, [2]float64{53.904153, 27.556925})
 	}
 	r.GET("/state_overview", func(c *gin.Context) {
@@ -120,7 +120,7 @@ func main() {
 			outChannel: make(chan []byte),
 			inChannel:  make(chan []byte),
 		}
-		newConn.meshPeer = meshpeer.NewRPCPeer(newConn.inChannel, newConn.outChannel, log.New(os.Stdout, "RPC PEER", log.LstdFlags))
+		newConn.meshPeer = meshpeer.NewRPCPeer(newConn.inChannel, newConn.outChannel, log.New(os.Stdout, "[RPC PEER] ", log.LstdFlags))
 		newConn.meshPeerID = crowdSimulator.AddActor(newConn.meshPeer, latlon)
 		wsMutex.Lock()
 		allConns[conn.RemoteAddr().String()] = newConn

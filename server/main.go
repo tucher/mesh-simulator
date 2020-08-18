@@ -69,8 +69,29 @@ func main() {
 		crowdSimulator.AddActor(npc, [2]float64{53.904153, 27.556925})
 	}
 	r.GET("/state_overview", func(c *gin.Context) {
-		logger.Println("here")
 		c.JSON(http.StatusOK, crowdSimulator.GetOverview())
+	})
+
+	r.POST("/send_msg", func(c *gin.Context) {
+		type msgData struct {
+			ID        string
+			Data      string
+			TargetIDs []string
+		}
+		json := &msgData{}
+		if err := c.ShouldBindJSON(&json); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+			return
+		}
+		targets := []meshsim.NetworkID{}
+		for _, i := range json.TargetIDs {
+			targets = append(targets, meshsim.NetworkID(i))
+		}
+		if err := crowdSimulator.SendMessage(meshsim.NetworkID(json.ID), targets, meshsim.NetworkMessage(json.Data)); err == nil {
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+		}
 	})
 
 	wsMutex := sync.RWMutex{}
@@ -107,8 +128,6 @@ func main() {
 		wsMutex.Unlock()
 
 		newConn.run(logger)
-
-		close(newConn.inChannel)
 
 		crowdSimulator.RemoveActor(newConn.meshPeerID)
 		wsMutex.Lock()
@@ -158,19 +177,5 @@ func (cl *wsClient) run(logger *log.Logger) {
 			return
 		}
 		cl.inChannel <- msg
-	}
-}
-
-func appendToFile(filename string, data []byte) {
-	// If the file doesn't exist, create it, or append to the file
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if _, err := f.Write(data); err != nil {
-		log.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		log.Fatal(err)
 	}
 }

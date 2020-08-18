@@ -1,6 +1,7 @@
 package meshsim
 
 import (
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -49,6 +50,7 @@ func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64) (newID Netw
 		currentPeers:     make(map[NetworkID]struct{}),
 		actor:            actor,
 		outgoingMsgQueue: make(map[NetworkID][]NetworkMessage),
+		mtx:              &sync.Mutex{},
 	}
 	for i := 0; i < 3; i++ {
 		na.randomAmpl[i] = rand.Float64() * 0.0002
@@ -60,6 +62,8 @@ func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64) (newID Netw
 
 	s.actors[na.ID] = &na
 	actor.RegisterSendMessageHandler(func(id NetworkID, data NetworkMessage) {
+		na.mtx.Lock()
+		defer na.mtx.Unlock()
 		if _, ok := na.outgoingMsgQueue[id]; !ok {
 			na.outgoingMsgQueue[id] = []NetworkMessage{}
 		}
@@ -189,6 +193,7 @@ func (s *Simulator) run() {
 					}
 				}
 			}
+			a.outgoingMsgQueue = make(map[NetworkID][]NetworkMessage)
 		}
 		s.simTime += dt
 		s.mtx.Unlock()
@@ -201,4 +206,26 @@ func New(logger *log.Logger) *Simulator {
 
 	go n.run()
 	return &n
+}
+
+// SendMessage send message from given peer to given peers. If target peers are empty, sends to all available peers(broadcast)
+func (s *Simulator) SendMessage(ID NetworkID, targets []NetworkID, data NetworkMessage) error {
+	if srcPeer, ok := s.actors[ID]; ok {
+		srcPeer.mtx.Lock()
+		defer srcPeer.mtx.Unlock()
+		if len(targets) == 0 {
+			for trg := range srcPeer.currentPeers {
+				targets = append(targets, trg)
+			}
+		}
+
+		for _, pr := range targets {
+			if _, ok := srcPeer.outgoingMsgQueue[pr]; !ok {
+				srcPeer.outgoingMsgQueue[pr] = []NetworkMessage{}
+			}
+			srcPeer.outgoingMsgQueue[pr] = append(srcPeer.outgoingMsgQueue[pr], data)
+		}
+		return nil
+	}
+	return fmt.Errorf("Source peer not found")
 }

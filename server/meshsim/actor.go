@@ -1,5 +1,7 @@
 package meshsim
 
+import "sync"
+
 type actorPhysics struct {
 	ID    NetworkID
 	Coord [2]float64
@@ -14,4 +16,6 @@ type actorPhysics struct {
 	actor MeshActor
 
 	outgoingMsgQueue map[NetworkID][]NetworkMessage
+
+	mtx *sync.Mutex
 }

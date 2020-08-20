@@ -14,6 +14,7 @@ type MeshActor interface {
 	HandleAppearedPeer(id NetworkID)
 	HandleDisappearedPeer(id NetworkID)
 	HandleMessage(id NetworkID, data NetworkMessage)
-	RegisterSendMessageHandler(handler func(id NetworkID, data NetworkMessage))
+	RegisterMessageSender(handler func(id NetworkID, data NetworkMessage))
 	HandleTimeTick(ts NetworkTime)
+	DebugData() interface{}
 }

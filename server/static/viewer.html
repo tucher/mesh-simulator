@@ -137,7 +137,10 @@
 			}
 			// var date = new Date(thisData.TS);
 			var popupHTML = `<b>${thisData.ID}</b><br/><br/>`;
-			for(var k in thisData.Meta) popupHTML += `<b>${k}</b><br/>${thisData.Meta[k]}<br/>`;
+			popupHTML += "<b>Meta</b><br/>"
+			for(var k in thisData.Meta) popupHTML += `<b>${k}</b> ${thisData.Meta[k]}<br/>`;
+			popupHTML += "<br/><b>Debug data</b><br/>"
+			for(var k in thisData.DebugData) popupHTML += `<b>${k}</b> ${JSON.stringify(thisData.DebugData[k])}<br/>`;
 			
 			curEnt.marker.setPopupContent(popupHTML);
 			curEnt.marker.setLatLng(new L.LatLng(thisData.Coord[0], thisData.Coord[1])); 
@@ -148,28 +151,29 @@
 	}
 	setInterval(()=>{loadJSON('/state_overview', updater, (e)=>{console.log(e);});}, 300);
 
+	if(0) {
+		let socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws_rpc?lat=53.904153&lon=27.556925`);
+		socket.onopen = function(e) {
+			console.log("[open] Connection established");
+		};
+		socket.onmessage = function(event) {
+			let msg = JSON.parse(event.data)
+			if (msg.Cmd == "didReceiveFromPeer") {
+				console.log(`[message from ${msg.Args.PeerID}]: ${msg.Args.Data}`);
+			}
+		};
+		socket.onclose = function(event) {
+			if (event.wasClean) {
+				console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+			} else {
+				console.log('[close] Connection died');
+			}
+		};
 
-	let socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws_rpc?lat=53.904153&lon=27.556925`);
-	socket.onopen = function(e) {
-		console.log("[open] Connection established");
-	};
-	socket.onmessage = function(event) {
-		let msg = JSON.parse(event.data)
-		if (msg.Cmd == "didReceiveFromPeer") {
-			console.log(`[message from ${msg.Args.PeerID}]: ${msg.Args.Data}`);
-		}
-	};
-	socket.onclose = function(event) {
-		if (event.wasClean) {
-			console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-		} else {
-			console.log('[close] Connection died');
-		}
-	};
-
-	socket.onerror = function(error) {
-		console.log(`[error] ${error.message}`);
-	};
+		socket.onerror = function(error) {
+			console.log(`[error] ${error.message}`);
+		};
+	}
 
 	// setInterval(()=>{socket.send(JSON.stringify({cmd: "some_cmd", data:{fu:new Date()}}));}, 300);
 

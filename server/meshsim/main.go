@@ -25,10 +25,11 @@ type Simulator struct {
 }
 
 type actorInfo struct {
-	ID    string
-	Coord [2]float64
-	Peers []string
-	Meta  map[string]interface{}
+	ID        string
+	Coord     [2]float64
+	Peers     []string
+	Meta      map[string]interface{}
+	DebugData interface{}
 }
 
 // Overview stores high level information about current simulation state
@@ -64,7 +65,7 @@ func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64, metainfo ma
 	na.startCoord[1] = na.Coord[1]
 
 	s.actors[na.ID] = &na
-	actor.RegisterSendMessageHandler(func(id NetworkID, data NetworkMessage) {
+	actor.RegisterMessageSender(func(id NetworkID, data NetworkMessage) {
 		na.mtx.Lock()
 		defer na.mtx.Unlock()
 		if _, ok := na.outgoingMsgQueue[id]; !ok {
@@ -99,7 +100,7 @@ func (s *Simulator) GetOverview() Overview {
 		for p := range e.currentPeers {
 			prs = append(prs, string(p))
 		}
-		ret.Actors[string(e.ID)] = actorInfo{string(e.ID), e.Coord, prs, e.metainfo}
+		ret.Actors[string(e.ID)] = actorInfo{string(e.ID), e.Coord, prs, e.metainfo, e.actor.DebugData()}
 	}
 
 	return ret
@@ -175,7 +176,7 @@ func (s *Simulator) findPeerActorsIDs(id NetworkID, maxDist float64, maxCount in
 	return ret
 }
 func (s *Simulator) run() {
-	var dt float64 = 0.1
+	var dt float64 = 0.020
 
 	for {
 		time.Sleep(time.Duration(dt*1000.0*s.timeRatio) * time.Millisecond)

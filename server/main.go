@@ -65,8 +65,8 @@ func main() {
 
 	crowdSimulator := meshsim.New(logger)
 	for i := 0; i < 10; i++ {
-		npc := meshpeer.NewSimplePeer1(log.New(os.Stdout, "[SIMPLE PEER] ", log.LstdFlags))
-		crowdSimulator.AddActor(npc, [2]float64{53.904153, 27.556925}, map[string]interface{}{"color": "red"})
+		npc := meshpeer.NewSimplePeer1(strconv.Itoa(i), log.New(os.Stdout, "[SIMPLE PEER] ", log.LstdFlags))
+		npc.ID = crowdSimulator.AddActor(npc, [2]float64{53.904153, 27.556925}, map[string]interface{}{"color": "red", "label": npc.Label})
 	}
 	r.GET("/state_overview", func(c *gin.Context) {
 		c.JSON(http.StatusOK, crowdSimulator.GetOverview())
@@ -121,7 +121,9 @@ func main() {
 			inChannel:  make(chan []byte),
 		}
 		newConn.meshPeer = meshpeer.NewRPCPeer(newConn.inChannel, newConn.outChannel, log.New(os.Stdout, "[RPC PEER] ", log.LstdFlags))
-		newConn.meshPeerID = crowdSimulator.AddActor(newConn.meshPeer, latlon, map[string]interface{}{"color": "green"})
+		newConn.meshPeer.ID = crowdSimulator.AddActor(newConn.meshPeer, latlon, map[string]interface{}{"color": "green"})
+		newConn.meshPeerID = newConn.meshPeer.ID
+
 		wsMutex.Lock()
 		allConns[conn.RemoteAddr().String()] = newConn
 		logger.Println("WS connections count: ", len(allConns))

@@ -136,9 +136,9 @@
 				curEnt = personMarkers[actorId];
 			}
 			// var date = new Date(thisData.TS);
-			var popupHTML = `<b>${thisData.ID}</b><br/><br/>`;
-			popupHTML += "<b>Meta</b><br/>"
-			for(var k in thisData.Meta) popupHTML += `<b>${k}</b> ${thisData.Meta[k]}<br/>`;
+			var popupHTML = `<b>${thisData.Meta.label}</b><br/><br/>`;
+			// popupHTML += "<b>Meta</b><br/>"
+			// for(var k in thisData.Meta) popupHTML += `<b>${k}</b> ${thisData.Meta[k]}<br/>`;
 			popupHTML += "<br/><b>Debug data</b><br/>"
 			for(var k in thisData.DebugData) popupHTML += `<b>${k}</b> ${JSON.stringify(thisData.DebugData[k])}<br/>`;
 			

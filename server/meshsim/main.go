@@ -22,6 +22,10 @@ type Simulator struct {
 	simTime float64
 
 	timeRatio float64
+
+	totalMsgSendCounter int
+
+	lastStatusTime float64
 }
 
 type actorInfo struct {
@@ -68,6 +72,8 @@ func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64, metainfo ma
 	actor.RegisterMessageSender(func(id NetworkID, data NetworkMessage) {
 		na.mtx.Lock()
 		defer na.mtx.Unlock()
+
+		s.totalMsgSendCounter++
 		if _, ok := na.outgoingMsgQueue[id]; !ok {
 			na.outgoingMsgQueue[id] = []NetworkMessage{}
 		}
@@ -217,13 +223,26 @@ func (s *Simulator) run() {
 			a.outgoingMsgQueue = make(map[NetworkID][]NetworkMessage)
 		}
 		s.simTime += dt
+
+		if s.simTime-s.lastStatusTime > 1 {
+			s.lastStatusTime = s.simTime
+			s.logger.Println("Total messages sent: ", s.totalMsgSendCounter)
+		}
 		s.mtx.Unlock()
 	}
 }
 
 // New creates and start new simulation
 func New(logger *log.Logger) *Simulator {
-	n := Simulator{logger, &sync.RWMutex{}, map[NetworkID]*actorPhysics{}, 0, 1}
+	n := Simulator{
+		logger:              logger,
+		mtx:                 &sync.RWMutex{},
+		actors:              map[NetworkID]*actorPhysics{},
+		simTime:             0,
+		timeRatio:           1,
+		totalMsgSendCounter: 0,
+		lastStatusTime:      0,
+	}
 
 	go n.run()
 	return &n

@@ -88,6 +88,8 @@ type SimplePeer1 struct {
 
 	meshNetworkState map[meshsim.NetworkID]peerState
 	currentTS        meshsim.NetworkTime
+
+	testStateSet bool
 }
 
 // HandleAppearedPeer implements crowd.MeshActor
@@ -200,8 +202,6 @@ func (th *SimplePeer1) RegisterMessageSender(handler func(id meshsim.NetworkID, 
 	th.sender = handler
 }
 
-var testStateSet bool = false
-
 // HandleTimeTick implements crowd.MeshActor
 func (th *SimplePeer1) HandleTimeTick(ts meshsim.NetworkTime) {
 	th.currentTS = ts
@@ -209,9 +209,9 @@ func (th *SimplePeer1) HandleTimeTick(ts meshsim.NetworkTime) {
 		s.tick(ts)
 	}
 
-	if !testStateSet {
-		testStateSet = true
-		th.SetState(PeerUserState{Message: fmt.Sprintf("FFFuuuuuuu from %v", th.Label)})
+	if !th.testStateSet {
+		th.testStateSet = true
+		th.SetState(PeerUserState{Message: fmt.Sprintf("Fuu from %v", th.Label)})
 	}
 }
 

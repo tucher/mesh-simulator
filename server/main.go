@@ -64,9 +64,11 @@ func main() {
 	r.Use(cors.Default())
 
 	crowdSimulator := meshsim.New(logger)
+	npcList := []*meshpeer.SimplePeer1{}
 	for i := 0; i < 10; i++ {
-		npc := meshpeer.NewSimplePeer1(strconv.Itoa(i), log.New(os.Stdout, "[SIMPLE PEER] ", log.LstdFlags))
-		npc.ID = crowdSimulator.AddActor(npc, [2]float64{53.904153, 27.556925}, map[string]interface{}{"color": "red", "label": npc.Label})
+		api := crowdSimulator.AddActor([2]float64{53.904153, 27.556925}, map[string]interface{}{"color": "red", "label": strconv.Itoa(i)})
+		npc := meshpeer.NewSimplePeer1(strconv.Itoa(i), log.New(os.Stdout, "[SIMPLE PEER] ", log.LstdFlags), api)
+		npcList = append(npcList, npc)
 	}
 	r.GET("/state_overview", func(c *gin.Context) {
 		c.JSON(http.StatusOK, crowdSimulator.GetOverview())
@@ -83,11 +85,11 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
 			return
 		}
-		targets := []meshsim.NetworkID{}
+		targets := []meshpeer.NetworkID{}
 		for _, i := range json.TargetIDs {
-			targets = append(targets, meshsim.NetworkID(i))
+			targets = append(targets, meshpeer.NetworkID(i))
 		}
-		if err := crowdSimulator.SendMessage(meshsim.NetworkID(json.ID), targets, meshsim.NetworkMessage(json.Data)); err == nil {
+		if err := crowdSimulator.SendMessage(meshpeer.NetworkID(json.ID), targets, meshpeer.NetworkMessage(json.Data)); err == nil {
 			c.JSON(http.StatusOK, gin.H{"ok": true})
 		} else {
 			c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
@@ -120,9 +122,9 @@ func main() {
 			outChannel: make(chan []byte),
 			inChannel:  make(chan []byte),
 		}
-		newConn.meshPeer = meshpeer.NewRPCPeer(newConn.inChannel, newConn.outChannel, log.New(os.Stdout, "[RPC PEER] ", log.LstdFlags))
-		newConn.meshPeer.ID = crowdSimulator.AddActor(newConn.meshPeer, latlon, map[string]interface{}{"color": "green"})
-		newConn.meshPeerID = newConn.meshPeer.ID
+		api := crowdSimulator.AddActor(latlon, map[string]interface{}{"color": "green"})
+		newConn.meshPeer = meshpeer.NewRPCPeer(newConn.inChannel, newConn.outChannel, log.New(os.Stdout, "[RPC PEER] ", log.LstdFlags), api)
+		newConn.meshPeerID = api.GetMyID()
 
 		wsMutex.Lock()
 		allConns[conn.RemoteAddr().String()] = newConn
@@ -149,7 +151,7 @@ type wsClient struct {
 	outChannel chan []byte
 	inChannel  chan []byte
 
-	meshPeerID meshsim.NetworkID
+	meshPeerID meshpeer.NetworkID
 	meshPeer   *meshpeer.RPCPeer
 }
 

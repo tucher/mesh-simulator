@@ -3,22 +3,18 @@ package meshpeer
 import (
 	"encoding/json"
 	"log"
-	"mesh-simulator/meshsim"
 )
 
 // RPCPeer provides RPC controllable mesh network peer
 type RPCPeer struct {
+	api    MeshAPI
 	in     chan []byte
 	out    chan []byte
 	logger *log.Logger
-
-	msgSender func(id meshsim.NetworkID, data meshsim.NetworkMessage)
-
-	ID meshsim.NetworkID
 }
 
 // HandleAppearedPeer implements crowd.MeshActor
-func (th *RPCPeer) HandleAppearedPeer(id meshsim.NetworkID) {
+func (th *RPCPeer) handleAppearedPeer(id NetworkID) {
 	type apMsg struct {
 		PeerID string
 	}
@@ -26,7 +22,7 @@ func (th *RPCPeer) HandleAppearedPeer(id meshsim.NetworkID) {
 }
 
 // HandleDisappearedPeer implements crowd.MeshActor
-func (th *RPCPeer) HandleDisappearedPeer(id meshsim.NetworkID) {
+func (th *RPCPeer) handleDisappearedPeer(id NetworkID) {
 	type disapMsg struct {
 		PeerID string
 	}
@@ -34,7 +30,7 @@ func (th *RPCPeer) HandleDisappearedPeer(id meshsim.NetworkID) {
 }
 
 // HandleMessage implements crowd.MeshActor
-func (th *RPCPeer) HandleMessage(id meshsim.NetworkID, data meshsim.NetworkMessage) {
+func (th *RPCPeer) handleMessage(id NetworkID, data NetworkMessage) {
 	type rcvMsg struct {
 		PeerID string
 		Data   string
@@ -42,22 +38,11 @@ func (th *RPCPeer) HandleMessage(id meshsim.NetworkID, data meshsim.NetworkMessa
 	th.sendRPC("didReceiveFromPeer", rcvMsg{string(id), string(data)})
 }
 
-// RegisterMessageSender implements crowd.MeshActor
-func (th *RPCPeer) RegisterMessageSender(handler func(id meshsim.NetworkID, data meshsim.NetworkMessage)) {
-	th.msgSender = handler
-}
-
-// HandleTimeTick implements crowd.MeshActor
-func (th *RPCPeer) HandleTimeTick(ts meshsim.NetworkTime) {
+func (th *RPCPeer) handleTimeTick(ts NetworkTime) {
 	type tickMsg struct {
 		TS int64
 	}
 	th.sendRPC("tick", tickMsg{int64(ts)})
-}
-
-// DebugData implements crowd.MeshActor
-func (th *RPCPeer) DebugData() interface{} {
-	return nil
 }
 
 func (th *RPCPeer) sendRPC(cmd string, args interface{}) {
@@ -99,7 +84,7 @@ func (th *RPCPeer) run() {
 				th.logger.Printf("parsing error: %v", msg)
 				th.sendAnswer(false, nil, nil)
 			} else {
-				th.msgSender(meshsim.NetworkID(args.PeerID), meshsim.NetworkMessage(args.Data))
+				th.api.SendMessage(NetworkID(args.PeerID), NetworkMessage(args.Data))
 				th.sendAnswer(true, nil, nil)
 			}
 
@@ -110,18 +95,28 @@ func (th *RPCPeer) run() {
 }
 
 // NewRPCPeer returns new RPCPeer
-func NewRPCPeer(in chan []byte, out chan []byte, logger *log.Logger) *RPCPeer {
-	r := &RPCPeer{
+func NewRPCPeer(in chan []byte, out chan []byte, logger *log.Logger, api MeshAPI) *RPCPeer {
+	ret := &RPCPeer{
+		api,
 		in,
 		out,
 		logger,
-		func(id meshsim.NetworkID, data meshsim.NetworkMessage) {
-			logger.Println("msg handler not registered", id, data)
-		},
-		"",
 	}
-	go r.run()
-	return r
+	api.RegisterMessageHandler(func(id NetworkID, data NetworkMessage) {
+		ret.handleMessage(id, data)
+	})
+	api.RegisterPeerAppearedHandler(func(id NetworkID) {
+		ret.handleAppearedPeer(id)
+	})
+	api.RegisterPeerDisappearedHandler(func(id NetworkID) {
+		ret.handleDisappearedPeer(id)
+	})
+	api.RegisterTimeTickHandler(func(ts NetworkTime) {
+		ret.handleTimeTick(ts)
+	})
+
+	go ret.run()
+	return ret
 }
 
 type rpcCommand struct {

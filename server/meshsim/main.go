@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"mesh-simulator/meshpeer"
+
 	"github.com/google/uuid"
 )
 
@@ -17,7 +19,7 @@ type Simulator struct {
 	logger *log.Logger
 	mtx    *sync.RWMutex
 
-	actors map[NetworkID]*actorPhysics
+	actors map[meshpeer.NetworkID]*actorPhysics
 
 	simTime float64
 
@@ -43,22 +45,31 @@ type Overview struct {
 }
 
 // AddActor adds generic peer to simulation and returns it's id
-func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64, metainfo map[string]interface{}) (newID NetworkID) {
+func (s *Simulator) AddActor(placeToAdd [2]float64, metainfo map[string]interface{}) meshpeer.MeshAPI {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	rndLat := rand.NormFloat64() * 0.00045
 	rndLon := rand.NormFloat64() * 0.00045
 
-	newID = NetworkID(uuid.New().String())
+	newID := meshpeer.NetworkID(uuid.New().String())
 	na := actorPhysics{
 		ID:               newID,
 		Coord:            [2]float64{placeToAdd[0] + rndLat, placeToAdd[1] + rndLon},
-		currentPeers:     make(map[NetworkID]struct{}),
-		actor:            actor,
-		outgoingMsgQueue: make(map[NetworkID][]NetworkMessage),
+		currentPeers:     make(map[meshpeer.NetworkID]struct{}),
+		outgoingMsgQueue: make(map[meshpeer.NetworkID][]meshpeer.NetworkMessage),
 		mtx:              &sync.Mutex{},
 		metainfo:         metainfo,
+	}
+	na.sender = func(id meshpeer.NetworkID, data meshpeer.NetworkMessage) {
+		na.mtx.Lock()
+		defer na.mtx.Unlock()
+
+		s.totalMsgSendCounter++
+		if _, ok := na.outgoingMsgQueue[id]; !ok {
+			na.outgoingMsgQueue[id] = []meshpeer.NetworkMessage{}
+		}
+		na.outgoingMsgQueue[id] = append(na.outgoingMsgQueue[id], data)
 	}
 	for i := 0; i < 3; i++ {
 		na.randomAmpl[i] = rand.Float64() * 0.0002
@@ -69,22 +80,12 @@ func (s *Simulator) AddActor(actor MeshActor, placeToAdd [2]float64, metainfo ma
 	na.startCoord[1] = na.Coord[1]
 
 	s.actors[na.ID] = &na
-	actor.RegisterMessageSender(func(id NetworkID, data NetworkMessage) {
-		na.mtx.Lock()
-		defer na.mtx.Unlock()
 
-		s.totalMsgSendCounter++
-		if _, ok := na.outgoingMsgQueue[id]; !ok {
-			na.outgoingMsgQueue[id] = []NetworkMessage{}
-		}
-		na.outgoingMsgQueue[id] = append(na.outgoingMsgQueue[id], data)
-	})
-
-	return
+	return &na
 }
 
 // RemoveActor removes peer from simulation by it's ID
-func (s *Simulator) RemoveActor(id NetworkID) {
+func (s *Simulator) RemoveActor(id meshpeer.NetworkID) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -106,7 +107,7 @@ func (s *Simulator) GetOverview() Overview {
 		for p := range e.currentPeers {
 			prs = append(prs, string(p))
 		}
-		ret.Actors[string(e.ID)] = actorInfo{string(e.ID), e.Coord, prs, e.metainfo, e.actor.DebugData()}
+		ret.Actors[string(e.ID)] = actorInfo{string(e.ID), e.Coord, prs, e.metainfo, e.debugData}
 	}
 
 	return ret
@@ -133,7 +134,7 @@ func distance(latlon1 [2]float64, latlon2 [2]float64) float64 {
 	return 2 * r * math.Asin(math.Sqrt(h))
 }
 
-func difference(mOld, mNew map[NetworkID]struct{}) (appeared []NetworkID, disappeared []NetworkID) {
+func difference(mOld, mNew map[meshpeer.NetworkID]struct{}) (appeared []meshpeer.NetworkID, disappeared []meshpeer.NetworkID) {
 	for x := range mNew {
 		if _, found := mOld[x]; !found {
 			appeared = append(appeared, x)
@@ -151,7 +152,7 @@ func difference(mOld, mNew map[NetworkID]struct{}) (appeared []NetworkID, disapp
 
 type peerDist struct {
 	D  float64
-	ID NetworkID
+	ID meshpeer.NetworkID
 }
 type peerDists []peerDist
 
@@ -159,7 +160,7 @@ func (a peerDists) Len() int           { return len(a) }
 func (a peerDists) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a peerDists) Less(i, j int) bool { return a[i].D < a[j].D }
 
-func (s *Simulator) findPeerActorsIDs(id NetworkID, maxDist float64, maxCount int) map[NetworkID]struct{} {
+func (s *Simulator) findPeerActorsIDs(id meshpeer.NetworkID, maxDist float64, maxCount int) map[meshpeer.NetworkID]struct{} {
 
 	dists := peerDists{}
 	for pID, a := range s.actors {
@@ -173,7 +174,7 @@ func (s *Simulator) findPeerActorsIDs(id NetworkID, maxDist float64, maxCount in
 		}
 	}
 	sort.Sort(dists)
-	ret := make(map[NetworkID]struct{})
+	ret := make(map[meshpeer.NetworkID]struct{})
 
 	for i := 0; i < len(dists) && i < maxCount; i++ {
 		ret[dists[i].ID] = struct{}{}
@@ -200,14 +201,14 @@ func (s *Simulator) run() {
 
 			newPeers := s.findPeerActorsIDs(a.ID, 50, 5)
 			appeared, disappeared := difference(a.currentPeers, newPeers)
-			a.actor.HandleTimeTick(NetworkTime(s.simTime * 1000000))
+			a.timeTickHandler(meshpeer.NetworkTime(s.simTime * 1000000))
 
 			for _, app := range appeared {
-				a.actor.HandleAppearedPeer(app)
+				a.peerAppearedHandler(app)
 			}
 
 			for _, dis := range disappeared {
-				a.actor.HandleDisappearedPeer(dis)
+				a.peerDisappearedHandler(dis)
 			}
 			a.currentPeers = newPeers
 
@@ -215,12 +216,12 @@ func (s *Simulator) run() {
 				if peer, found := s.actors[trgID]; found {
 					if _, found := a.currentPeers[trgID]; found {
 						for _, msg := range msgList {
-							peer.actor.HandleMessage(a.ID, msg)
+							peer.messageHandler(a.ID, msg)
 						}
 					}
 				}
 			}
-			a.outgoingMsgQueue = make(map[NetworkID][]NetworkMessage)
+			a.outgoingMsgQueue = make(map[meshpeer.NetworkID][]meshpeer.NetworkMessage)
 		}
 		s.simTime += dt
 
@@ -237,7 +238,7 @@ func New(logger *log.Logger) *Simulator {
 	n := Simulator{
 		logger:              logger,
 		mtx:                 &sync.RWMutex{},
-		actors:              map[NetworkID]*actorPhysics{},
+		actors:              map[meshpeer.NetworkID]*actorPhysics{},
 		simTime:             0,
 		timeRatio:           1,
 		totalMsgSendCounter: 0,
@@ -249,7 +250,7 @@ func New(logger *log.Logger) *Simulator {
 }
 
 // SendMessage send message from given peer to given peers. If target peers are empty, sends to all available peers(broadcast)
-func (s *Simulator) SendMessage(ID NetworkID, targets []NetworkID, data NetworkMessage) error {
+func (s *Simulator) SendMessage(ID meshpeer.NetworkID, targets []meshpeer.NetworkID, data meshpeer.NetworkMessage) error {
 	if srcPeer, ok := s.actors[ID]; ok {
 		srcPeer.mtx.Lock()
 		defer srcPeer.mtx.Unlock()
@@ -261,7 +262,7 @@ func (s *Simulator) SendMessage(ID NetworkID, targets []NetworkID, data NetworkM
 
 		for _, pr := range targets {
 			if _, ok := srcPeer.outgoingMsgQueue[pr]; !ok {
-				srcPeer.outgoingMsgQueue[pr] = []NetworkMessage{}
+				srcPeer.outgoingMsgQueue[pr] = []meshpeer.NetworkMessage{}
 			}
 			srcPeer.outgoingMsgQueue[pr] = append(srcPeer.outgoingMsgQueue[pr], data)
 		}

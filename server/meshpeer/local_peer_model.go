@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 )
 
 type pkgStateUpdate struct {
@@ -87,7 +88,7 @@ type SimplePeer1 struct {
 	meshNetworkState map[NetworkID]peerState
 	currentTS        NetworkTime
 
-	testStateSet bool
+	nextSendTime NetworkTime
 }
 
 // HandleAppearedPeer implements crowd.MeshActor
@@ -202,9 +203,9 @@ func (th *SimplePeer1) handleTimeTick(ts NetworkTime) {
 		s.tick(ts)
 	}
 
-	if !th.testStateSet {
-		th.testStateSet = true
-		th.SetState(PeerUserState{Message: fmt.Sprintf("Fuu from %v", th.Label)})
+	if th.currentTS > th.nextSendTime {
+		th.nextSendTime = th.currentTS + NetworkTime(3000000+rand.Int63n(5000000))
+		th.SetState(PeerUserState{Message: fmt.Sprintf("%v says %v", th.Label, th.currentTS)})
 	}
 }
 

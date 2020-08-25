@@ -123,6 +123,20 @@ func (th *SimplePeer1) handleDisappearedPeer(id NetworkID) {
 	delete(th.syncers, id)
 }
 
+type debugDataStruct struct {
+	MyID       NetworkID
+	MyTS       NetworkTime
+	PeersState map[NetworkID]peerState
+}
+
+func (th *SimplePeer1) sendDbgData() {
+	th.api.SendDebugData(debugDataStruct{
+		th.api.GetMyID(),
+		th.currentTS,
+		th.meshNetworkState,
+	})
+}
+
 func (th *SimplePeer1) handleNewIncomingState(sourceID NetworkID, update pkgStateUpdate) {
 	newNetworkState := make(map[NetworkID]peerState)
 	somethingChanged := false
@@ -131,13 +145,10 @@ func (th *SimplePeer1) handleNewIncomingState(sourceID NetworkID, update pkgStat
 			if existingPeerState, ok := th.meshNetworkState[id]; !ok {
 				somethingChanged = true
 				th.meshNetworkState[id] = newPeerState
-				th.api.SendDebugData(th.meshNetworkState)
 			} else {
 				if existingPeerState.UpdateTS < newPeerState.UpdateTS {
 					somethingChanged = true
 					th.meshNetworkState[id] = newPeerState
-					th.api.SendDebugData(th.meshNetworkState)
-
 				}
 			}
 		}
@@ -147,6 +158,7 @@ func (th *SimplePeer1) handleNewIncomingState(sourceID NetworkID, update pkgStat
 	}
 
 	if somethingChanged {
+		th.sendDbgData()
 		serialisedState, err := json.Marshal(th.meshNetworkState)
 		if err != nil {
 			th.logger.Println(err.Error())
@@ -205,7 +217,7 @@ func (th *SimplePeer1) handleTimeTick(ts NetworkTime) {
 
 	if th.currentTS > th.nextSendTime {
 		th.nextSendTime = th.currentTS + NetworkTime(3000000+rand.Int63n(5000000))
-		th.SetState(PeerUserState{Message: fmt.Sprintf("%v says %v", th.Label, th.currentTS)})
+		th.SetState(PeerUserState{Message: fmt.Sprintf("%v says %v", th.Label, th.currentTS/1000)})
 	}
 }
 
@@ -240,7 +252,7 @@ func (th *SimplePeer1) SetState(p PeerUserState) {
 		UserState: p,
 		UpdateTS:  th.currentTS,
 	}
-	th.api.SendDebugData(th.meshNetworkState)
+	th.sendDbgData()
 	serialisedState, err := json.Marshal(th.meshNetworkState)
 	if err != nil {
 		th.logger.Println(err.Error())

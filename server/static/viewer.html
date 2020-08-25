@@ -139,8 +139,19 @@
 			var popupHTML = `<b>${thisData.Meta.label}</b><br/><br/>`;
 			// popupHTML += "<b>Meta</b><br/>"
 			// for(var k in thisData.Meta) popupHTML += `<b>${k}</b> ${thisData.Meta[k]}<br/>`;
-			popupHTML += "<br/><b>Debug data</b><br/>"
-			for(var k in thisData.DebugData) popupHTML += `<b>${k}</b> ${JSON.stringify(thisData.DebugData[k])}<br/>`;
+			let toSort = [];
+			for(var k in thisData.DebugData.PeersState) {
+				let updTime = (thisData.DebugData.MyTS - thisData.DebugData.PeersState[k].UpdateTS)/1000000;
+				toSort.push({text: `${thisData.DebugData.PeersState[k].UserState.Message}   (${(updTime).toFixed(0)}s ago)<br/>`, ago: updTime})
+			}
+			toSort.sort((a1,a2)=>{return a1.ago>a2.ago});
+			for(let s of toSort) {
+				popupHTML += s.text
+			}
+			// for(var k in thisData.DebugData.PeersState) {
+			// 	let updTime = (thisData.DebugData.MyTS - thisData.DebugData.PeersState[k].UpdateTS)/1000000;
+			// 	popupHTML += `${thisData.DebugData.PeersState[k].UserState.Message}   (${(updTime).toFixed(0)}s ago)<br/>`;
+			// }
 			
 			curEnt.marker.setPopupContent(popupHTML);
 			curEnt.marker.setLatLng(new L.LatLng(thisData.Coord[0], thisData.Coord[1])); 

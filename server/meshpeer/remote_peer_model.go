@@ -61,7 +61,9 @@ func (th *RPCPeer) sendAnswer(ok bool, args interface{}, err error) {
 	o := outputStructure{}
 	o.Ok = ok
 	o.Args = args
-	o.Error = err.Error()
+	if err != nil {
+		o.Error = err.Error()
+	}
 
 	b, _ := json.Marshal(o)
 	th.out <- b

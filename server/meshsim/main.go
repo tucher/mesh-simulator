@@ -81,6 +81,11 @@ func (s *Simulator) AddActor(placeToAdd [2]float64, metainfo map[string]interfac
 
 	s.actors[na.ID] = &na
 
+	na.peerAppearedHandler = func(id meshpeer.NetworkID) {}
+	na.peerDisappearedHandler = func(id meshpeer.NetworkID) {}
+	na.messageHandler = func(id meshpeer.NetworkID, data meshpeer.NetworkMessage) {}
+	na.timeTickHandler = func(ts meshpeer.NetworkTime) {}
+
 	return &na
 }
 
@@ -245,8 +250,12 @@ func New(logger *log.Logger) *Simulator {
 		lastStatusTime:      0,
 	}
 
-	go n.run()
 	return &n
+}
+
+// Run starts simulation
+func (s *Simulator) Run() {
+	go s.run()
 }
 
 // SendMessage send message from given peer to given peers. If target peers are empty, sends to all available peers(broadcast)

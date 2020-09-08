@@ -1,6 +1,7 @@
 package meshpeer
 
 import (
+	"encoding/json"
 	"log"
 
 	"github.com/dop251/goja"
@@ -89,6 +90,17 @@ func NewJSPeer(jsCode string, logger *log.Logger, api MeshAPI) (*JSPeer, error) 
 				NetworkID(args.Arguments[0].String()),
 				NetworkMessage(args.Arguments[1].String()),
 			)
+			return goja.Undefined()
+		})
+		type debugDataStruct struct {
+			Message string
+		}
+
+		call.This.Set("setDebugMessage", func(args goja.FunctionCall) goja.Value {
+			if len(args.Arguments) != 1 {
+				panic(ret.jsRuntime.ToValue("serialised JSON string is needed"))
+			}
+			api.SendDebugData(json.RawMessage(args.Arguments[0].String()))
 			return goja.Undefined()
 		})
 

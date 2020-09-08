@@ -1,6 +1,6 @@
 import requests
 url = "http://localhost:8088"
-
+# url = "http://burevestnik.means.live:8887"
 script = """
 log('started');
 var api = new MeshAPI();
@@ -9,7 +9,7 @@ log('my ID:', myId);
 api.sendMessage('bla', "some message");
 
 api.registerMessageHandler(function(id, data) {
-    log('onMessage: ', id, data);
+    //log('onMessage: ', id, data);
 });
 
 api.registerPeerAppearedHandler(function(id) {
@@ -19,10 +19,13 @@ api.registerPeerAppearedHandler(function(id) {
 api.registerPeerDisappearedHandler(function(id) {
     log('onPeerDisappeared: ', id);
 });
-
+var currentTS = 0;
 api.registerTimeTickHandler(function(ts) {
-    log('onTimeTick: ', ts);
+    currentTS = ts;
+    //log('onTimeTick: ', ts);
+    api.setDebugMessage(JSON.stringify({MyID: api.getMyID(), MyTS:  currentTS}));
 });
+
 """
 while True:
     input()

@@ -64,16 +64,66 @@ func main() {
 	r.Use(cors.Default())
 
 	crowdSimulator := meshsim.New(logger)
-	npcList := []*meshpeer.SimplePeer1{}
+	npcList := map[meshpeer.NetworkID]interface{}{}
+	npcListMtx := &sync.Mutex{}
 	for i := 0; i < 10; i++ {
 		api := crowdSimulator.AddActor([2]float64{53.904153, 27.556925}, map[string]interface{}{"color": "red", "label": strconv.Itoa(i)})
 		npc := meshpeer.NewSimplePeer1(strconv.Itoa(i), log.New(os.Stdout, "[SIMPLE PEER] ", log.LstdFlags), api)
-		npcList = append(npcList, npc)
+		npcList[api.GetMyID()] = npc
 	}
+
+	crowdSimulator.Run()
+
 	r.GET("/state_overview", func(c *gin.Context) {
 		c.JSON(http.StatusOK, crowdSimulator.GetOverview())
 	})
 
+	r.POST("/create_peer", func(c *gin.Context) {
+		type msgData struct {
+			StartCoord [2]float64
+			Script     string
+			Meta       map[string]interface{}
+		}
+		json := &msgData{}
+		if err := c.ShouldBindJSON(&json); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+			return
+		}
+
+		api := crowdSimulator.AddActor(json.StartCoord, json.Meta)
+		npc, err := meshpeer.NewJSPeer(json.Script, log.New(os.Stdout, "[JS PEER] ", log.LstdFlags), api)
+		if err != nil {
+			crowdSimulator.RemoveActor(api.GetMyID())
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		} else {
+			npcListMtx.Lock()
+			defer npcListMtx.Unlock()
+			npcList[api.GetMyID()] = npc
+			c.JSON(http.StatusOK, gin.H{"ok": true, "id": string(api.GetMyID())})
+		}
+
+	})
+	r.POST("/delete_peer", func(c *gin.Context) {
+		type msgData struct {
+			ID string
+		}
+		json := &msgData{}
+		if err := c.ShouldBindJSON(&json); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+			return
+		}
+		npcListMtx.Lock()
+		defer npcListMtx.Unlock()
+
+		if _, ok := npcList[meshpeer.NetworkID(json.ID)]; !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "peer not found"})
+			return
+		}
+
+		crowdSimulator.RemoveActor(meshpeer.NetworkID(json.ID))
+		delete(npcList, meshpeer.NetworkID(json.ID))
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
 	r.POST("/send_msg", func(c *gin.Context) {
 		type msgData struct {
 			ID        string

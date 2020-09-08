@@ -3,9 +3,12 @@ module mesh-simulator
 go 1.14
 
 require (
+	github.com/dlclark/regexp2 v1.2.1 // indirect
+	github.com/dop251/goja v0.0.0-20200831102558-9af81ddcf0e1
 	github.com/gin-contrib/cors v1.3.1
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-playground/validator/v10 v10.3.0 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.2

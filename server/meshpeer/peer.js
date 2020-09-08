@@ -1,5 +1,11 @@
 log('started');
-var api = new MeshAPI();
+let api;
+try {
+  api = new MeshAPI();
+}
+catch(e){
+  api = MeshAPI.getInstance();
+}
 var myId = api.getMyID();
 log('my ID:', myId);
 

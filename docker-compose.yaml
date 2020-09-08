@@ -7,7 +7,7 @@ services:
     volumes:
       - ./server:/server
     ports:
-      - "80:8088"
+      - "8887:8088"
     working_dir: /server
     command: bash -c "/mesh_simulator_server -httpaddress=0.0.0.0:8088 -historyseconds=1800"
     restart: always

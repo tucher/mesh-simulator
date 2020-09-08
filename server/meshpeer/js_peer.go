@@ -31,7 +31,9 @@ func NewJSPeer(jsCode string, logger *log.Logger, api MeshAPI) (*JSPeer, error) 
 				return ret.jsRuntime.ToValue(false)
 			}
 			api.RegisterMessageHandler(func(id NetworkID, data NetworkMessage) {
-				f(args.This, ret.jsRuntime.ToValue(string(id)), ret.jsRuntime.ToValue(string(data)))
+				if _, err := f(args.This, ret.jsRuntime.ToValue(string(id)), ret.jsRuntime.ToValue(string(data))); err != nil {
+					logger.Println(err.Error())
+				}
 			})
 			return ret.jsRuntime.ToValue(true)
 		})
@@ -45,7 +47,9 @@ func NewJSPeer(jsCode string, logger *log.Logger, api MeshAPI) (*JSPeer, error) 
 				return ret.jsRuntime.ToValue(false)
 			}
 			api.RegisterPeerAppearedHandler(func(id NetworkID) {
-				f(args.This, ret.jsRuntime.ToValue(string(id)))
+				if _, err := f(args.This, ret.jsRuntime.ToValue(string(id))); err != nil {
+					logger.Println(err.Error())
+				}
 			})
 			return ret.jsRuntime.ToValue(true)
 		})
@@ -59,7 +63,9 @@ func NewJSPeer(jsCode string, logger *log.Logger, api MeshAPI) (*JSPeer, error) 
 				return ret.jsRuntime.ToValue(false)
 			}
 			api.RegisterPeerDisappearedHandler(func(id NetworkID) {
-				f(args.This, ret.jsRuntime.ToValue(string(id)))
+				if _, err := f(args.This, ret.jsRuntime.ToValue(string(id))); err != nil {
+					logger.Println(err.Error())
+				}
 			})
 			return ret.jsRuntime.ToValue(true)
 		})
@@ -74,8 +80,22 @@ func NewJSPeer(jsCode string, logger *log.Logger, api MeshAPI) (*JSPeer, error) 
 			}
 
 			api.RegisterTimeTickHandler(func(ts NetworkTime) {
-				f(args.This, ret.jsRuntime.ToValue(float64(ts)))
+				if _, err := f(args.This, ret.jsRuntime.ToValue(float64(ts))); err != nil {
+					logger.Println(err.Error())
+				}
 			})
+			return ret.jsRuntime.ToValue(true)
+		})
+
+		call.This.Set("registerUserDataUpdateHandler", func(args goja.FunctionCall) goja.Value {
+			if len(args.Arguments) != 1 {
+				return ret.jsRuntime.ToValue(false)
+			}
+			_, ok := goja.AssertFunction(args.Arguments[0])
+			if !ok {
+				return ret.jsRuntime.ToValue(false)
+			}
+
 			return ret.jsRuntime.ToValue(true)
 		})
 

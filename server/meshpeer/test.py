@@ -1,32 +1,9 @@
 import requests
 url = "http://localhost:8088"
 # url = "http://burevestnik.means.live:8887"
-script = """
-log('started');
-var api = new MeshAPI();
-var myId = api.getMyID();
-log('my ID:', myId);
-api.sendMessage('bla', "some message");
 
-api.registerMessageHandler(function(id, data) {
-    //log('onMessage: ', id, data);
-});
+script = open("./peer.js", 'r').read()
 
-api.registerPeerAppearedHandler(function(id) {
-    log('onPeerAppeared: ', id);
-});
-
-api.registerPeerDisappearedHandler(function(id) {
-    log('onPeerDisappeared: ', id);
-});
-var currentTS = 0;
-api.registerTimeTickHandler(function(ts) {
-    currentTS = ts;
-    //log('onTimeTick: ', ts);
-    api.setDebugMessage(JSON.stringify({MyID: api.getMyID(), MyTS:  currentTS}));
-});
-
-"""
 while True:
     input()
     res = requests.post(url + "/create_peer", json={

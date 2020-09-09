@@ -3,11 +3,11 @@ try {
   if (!!api) {
     // exists, injected by Swift/JavaScriptCore
   } else {
-    var api = new MeshAPI();
+    var api = new MeshAPI(); // Swift does not expose init(), so if cannot create ...
   }
 }
 catch(e){
-  var api = MeshAPI.getInstance();
+  var api = MeshAPI.getInstance(); // go getInstance like that
 }
 var myId = api.getMyID();
 log('my ID:', myId);

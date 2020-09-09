@@ -1,10 +1,13 @@
 log('started');
-let api;
 try {
-  api = new MeshAPI();
+  if (!!api) {
+    // exists, injected by Swift/JavaScriptCore
+  } else {
+    var api = new MeshAPI();
+  }
 }
 catch(e){
-  api = MeshAPI.getInstance();
+  var api = MeshAPI.getInstance();
 }
 var myId = api.getMyID();
 log('my ID:', myId);

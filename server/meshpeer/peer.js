@@ -4,7 +4,7 @@ try {
     // exists, injected by Swift/JavaScriptCore
   }
 }
-catch(e){
+catch(up){
   var api = new MeshAPI(); // Swift does not expose init()
 }
 var myId = api.getMyID();

@@ -70,13 +70,14 @@ function sendFrontendUpdate() {
             Data: meshNetworkState[id].UserState
         }
     }
-    frontendAPI.handleUpdate({
+    var upd = {
 		ThisPeer: meshNetworkState[myId] ? {
             TS: meshNetworkState[myId].UpdateTS,
             Data: meshNetworkState[myId].UserState
         }: null,
         AllPeers: st
-	})
+    };
+    frontendAPI.handleUpdate(upd);
 }
 
 function handleNewIncomingState(sourceID, update) {

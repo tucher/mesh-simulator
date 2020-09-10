@@ -30,6 +30,11 @@ type actorPhysics struct {
 	timeTickHandler        func(ts meshpeer.NetworkTime)
 
 	debugData interface{}
+
+	userDataSetter func(interface{})
+
+	nextUserSimulationSentTime float64
+	userInterestingEventTime   float64
 }
 
 func (th *actorPhysics) GetMyID() meshpeer.NetworkID {
@@ -51,5 +56,15 @@ func (th *actorPhysics) RegisterTimeTickHandler(h func(ts meshpeer.NetworkTime))
 	th.timeTickHandler = h
 }
 func (th *actorPhysics) SendDebugData(d interface{}) {
-	th.debugData = d
+
+}
+
+func (th *actorPhysics) HandleUpdate(update meshpeer.FrontEndUpdateObject) {
+
+	th.debugData = update
+}
+func (th *actorPhysics) RegisterUserDataUpdateHandler(h func(meshpeer.FrontendUserDataType)) {
+	th.userDataSetter = func(d interface{}) {
+		h(meshpeer.FrontendUserDataType(d))
+	}
 }

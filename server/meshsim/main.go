@@ -30,29 +30,15 @@ type Simulator struct {
 	lastStatusTime float64
 }
 
-type actorInfo struct {
-	ID        string
-	Coord     [2]float64
-	Peers     []string
-	Meta      map[string]interface{}
-	DebugData interface{}
-}
-
-// Overview stores high level information about current simulation state
-type Overview struct {
-	TS     int64
-	Actors map[string]actorInfo
-}
-
 // AddActor adds generic peer to simulation and returns it's id
-func (s *Simulator) AddActor(placeToAdd [2]float64, metainfo map[string]interface{}) meshpeer.MeshAPI {
+func (s *Simulator) AddActor(placeToAdd [2]float64, metainfo map[string]interface{}) (meshpeer.MeshAPI, meshpeer.FrontendAPI) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	rndLat := rand.NormFloat64() * 0.00045
 	rndLon := rand.NormFloat64() * 0.00045
 
-	newID := meshpeer.NetworkID(uuid.New().String())
+	newID := meshpeer.NetworkID(uuid.New().String())[0:8]
 	na := actorPhysics{
 		ID:               newID,
 		Coord:            [2]float64{placeToAdd[0] + rndLat, placeToAdd[1] + rndLon},
@@ -81,12 +67,12 @@ func (s *Simulator) AddActor(placeToAdd [2]float64, metainfo map[string]interfac
 
 	s.actors[na.ID] = &na
 
-	na.peerAppearedHandler = func(id meshpeer.NetworkID) {}
-	na.peerDisappearedHandler = func(id meshpeer.NetworkID) {}
-	na.messageHandler = func(id meshpeer.NetworkID, data meshpeer.NetworkMessage) {}
-	na.timeTickHandler = func(ts meshpeer.NetworkTime) {}
-
-	return &na
+	na.peerAppearedHandler = func(meshpeer.NetworkID) {}
+	na.peerDisappearedHandler = func(meshpeer.NetworkID) {}
+	na.messageHandler = func(meshpeer.NetworkID, meshpeer.NetworkMessage) {}
+	na.timeTickHandler = func(meshpeer.NetworkTime) {}
+	na.userDataSetter = func(interface{}) {}
+	return &na, &na
 }
 
 // RemoveActor removes peer from simulation by it's ID
@@ -97,6 +83,20 @@ func (s *Simulator) RemoveActor(id meshpeer.NetworkID) {
 	if _, ok := s.actors[id]; ok {
 		delete(s.actors, id)
 	}
+}
+
+// Overview stores high level information about current simulation state
+type Overview struct {
+	TS     int64
+	Actors map[string]actorInfo
+}
+
+type actorInfo struct {
+	ID           string
+	Coord        [2]float64
+	Peers        []string
+	Meta         map[string]interface{}
+	CurrentState interface{}
 }
 
 // GetOverview return current state overview
@@ -208,12 +208,35 @@ func (s *Simulator) run() {
 			appeared, disappeared := difference(a.currentPeers, newPeers)
 			a.timeTickHandler(meshpeer.NetworkTime(s.simTime * 1000000))
 
+			type PeerUserState struct {
+				Coordinates []float64
+				Message     string
+			}
+
+			if s.simTime-a.userInterestingEventTime > 10 && s.simTime >= a.nextUserSimulationSentTime {
+				a.nextUserSimulationSentTime = s.simTime
+				a.userDataSetter(PeerUserState{
+					Coordinates: []float64(a.Coord[:]),
+					Message:     fmt.Sprintf("It's boring for %vs", int(s.simTime-a.userInterestingEventTime)),
+				})
+				a.nextUserSimulationSentTime += rand.Float64()*8.0 + 3.0
+			}
 			for _, app := range appeared {
+				a.userInterestingEventTime = s.simTime
 				a.peerAppearedHandler(app)
+				a.userDataSetter(PeerUserState{
+					Coordinates: []float64(a.Coord[:]),
+					Message:     fmt.Sprintf("Hi, %v!", app),
+				})
 			}
 
 			for _, dis := range disappeared {
+				a.userInterestingEventTime = s.simTime
 				a.peerDisappearedHandler(dis)
+				a.userDataSetter(PeerUserState{
+					Coordinates: []float64(a.Coord[:]),
+					Message:     fmt.Sprintf("Bye, %v!", dis),
+				})
 			}
 			a.currentPeers = newPeers
 

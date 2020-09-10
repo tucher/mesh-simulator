@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -66,10 +67,20 @@ func main() {
 	crowdSimulator := meshsim.New(logger)
 	npcList := map[meshpeer.NetworkID]interface{}{}
 	npcListMtx := &sync.Mutex{}
-	for i := 0; i < 10; i++ {
-		api := crowdSimulator.AddActor([2]float64{53.904153, 27.556925}, map[string]interface{}{"color": "red", "label": strconv.Itoa(i)})
-		npc := meshpeer.NewSimplePeer1(strconv.Itoa(i), log.New(os.Stdout, "[SIMPLE PEER] ", log.LstdFlags), api)
-		npcList[api.GetMyID()] = npc
+
+	if jsCode, err := ioutil.ReadFile("./meshpeer/peer.js"); err == nil {
+		for i := 0; i < 10; i++ {
+			api, frontendAPI := crowdSimulator.AddActor([2]float64{53.904153, 27.556925}, map[string]interface{}{"color": "red", "label": strconv.Itoa(i)})
+			npc, err := meshpeer.NewJSPeer(string(jsCode), log.New(os.Stdout, "[JS PEER] ", log.LstdFlags), api, frontendAPI)
+			if err != nil {
+				crowdSimulator.RemoveActor(api.GetMyID())
+				logger.Println("Cannot create js peer: ", err.Error())
+			} else {
+				npcList[api.GetMyID()] = npc
+			}
+		}
+	} else {
+		logger.Println("Example js peer script is not found")
 	}
 
 	crowdSimulator.Run()
@@ -90,16 +101,16 @@ func main() {
 			return
 		}
 
-		api := crowdSimulator.AddActor(json.StartCoord, json.Meta)
-		npc, err := meshpeer.NewJSPeer(json.Script, log.New(os.Stdout, "[JS PEER] ", log.LstdFlags), api)
+		meshAPI, frontendAPI := crowdSimulator.AddActor(json.StartCoord, json.Meta)
+		npc, err := meshpeer.NewJSPeer(json.Script, log.New(os.Stdout, "[JS PEER] ", log.LstdFlags), meshAPI, frontendAPI)
 		if err != nil {
-			crowdSimulator.RemoveActor(api.GetMyID())
+			crowdSimulator.RemoveActor(meshAPI.GetMyID())
 			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
 		} else {
 			npcListMtx.Lock()
 			defer npcListMtx.Unlock()
-			npcList[api.GetMyID()] = npc
-			c.JSON(http.StatusOK, gin.H{"ok": true, "id": string(api.GetMyID())})
+			npcList[meshAPI.GetMyID()] = npc
+			c.JSON(http.StatusOK, gin.H{"ok": true, "id": string(meshAPI.GetMyID())})
 		}
 
 	})
@@ -172,7 +183,7 @@ func main() {
 			outChannel: make(chan []byte),
 			inChannel:  make(chan []byte),
 		}
-		api := crowdSimulator.AddActor(latlon, map[string]interface{}{"color": "green"})
+		api, _ := crowdSimulator.AddActor(latlon, map[string]interface{}{"color": "green"})
 		newConn.meshPeer = meshpeer.NewRPCPeer(newConn.inChannel, newConn.outChannel, log.New(os.Stdout, "[RPC PEER] ", log.LstdFlags), api)
 		newConn.meshPeerID = api.GetMyID()
 

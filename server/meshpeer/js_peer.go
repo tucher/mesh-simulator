@@ -9,125 +9,139 @@ import (
 
 // JSPeer provides environment to run  mesh network peer implemented in JS
 type JSPeer struct {
-	api       MeshAPI
 	jsRuntime *goja.Runtime
 	logger    *log.Logger
 }
 
 // NewJSPeer returns new RPCPeer
-func NewJSPeer(jsCode string, logger *log.Logger, api MeshAPI) (*JSPeer, error) {
+func NewJSPeer(jsCode string, logger *log.Logger, meshAPI MeshAPI, frontendAPI FrontendAPI) (*JSPeer, error) {
 	ret := &JSPeer{
-		api:       api,
 		jsRuntime: goja.New(),
 		logger:    logger,
 	}
-	APIContructor := func(call goja.ConstructorCall) *goja.Object {
-		call.This.Set("registerMessageHandler", func(args goja.FunctionCall) goja.Value {
-			if len(args.Arguments) != 1 {
-				return ret.jsRuntime.ToValue(false)
-			}
-			f, ok := goja.AssertFunction(args.Arguments[0])
-			if !ok {
-				return ret.jsRuntime.ToValue(false)
-			}
-			api.RegisterMessageHandler(func(id NetworkID, data NetworkMessage) {
-				if _, err := f(args.This, ret.jsRuntime.ToValue(string(id)), ret.jsRuntime.ToValue(string(data))); err != nil {
-					logger.Println(err.Error())
-				}
-			})
-			return ret.jsRuntime.ToValue(true)
-		})
+	meshAPIObj := ret.jsRuntime.NewObject()
 
-		call.This.Set("registerPeerAppearedHandler", func(args goja.FunctionCall) goja.Value {
-			if len(args.Arguments) != 1 {
-				return ret.jsRuntime.ToValue(false)
+	meshAPIObj.Set("registerMessageHandler", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 1 {
+			return ret.jsRuntime.ToValue(false)
+		}
+		f, ok := goja.AssertFunction(args.Arguments[0])
+		if !ok {
+			return ret.jsRuntime.ToValue(false)
+		}
+		meshAPI.RegisterMessageHandler(func(id NetworkID, data NetworkMessage) {
+			if _, err := f(args.This, ret.jsRuntime.ToValue(string(id)), ret.jsRuntime.ToValue(string(data))); err != nil {
+				logger.Println(err.Error())
 			}
-			f, ok := goja.AssertFunction(args.Arguments[0])
-			if !ok {
-				return ret.jsRuntime.ToValue(false)
-			}
-			api.RegisterPeerAppearedHandler(func(id NetworkID) {
-				if _, err := f(args.This, ret.jsRuntime.ToValue(string(id))); err != nil {
-					logger.Println(err.Error())
-				}
-			})
-			return ret.jsRuntime.ToValue(true)
 		})
+		return ret.jsRuntime.ToValue(true)
+	})
 
-		call.This.Set("registerPeerDisappearedHandler", func(args goja.FunctionCall) goja.Value {
-			if len(args.Arguments) != 1 {
-				return ret.jsRuntime.ToValue(false)
+	meshAPIObj.Set("registerPeerAppearedHandler", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 1 {
+			return ret.jsRuntime.ToValue(false)
+		}
+		f, ok := goja.AssertFunction(args.Arguments[0])
+		if !ok {
+			return ret.jsRuntime.ToValue(false)
+		}
+		meshAPI.RegisterPeerAppearedHandler(func(id NetworkID) {
+			if _, err := f(args.This, ret.jsRuntime.ToValue(string(id))); err != nil {
+				logger.Println(err.Error())
 			}
-			f, ok := goja.AssertFunction(args.Arguments[0])
-			if !ok {
-				return ret.jsRuntime.ToValue(false)
-			}
-			api.RegisterPeerDisappearedHandler(func(id NetworkID) {
-				if _, err := f(args.This, ret.jsRuntime.ToValue(string(id))); err != nil {
-					logger.Println(err.Error())
-				}
-			})
-			return ret.jsRuntime.ToValue(true)
 		})
+		return ret.jsRuntime.ToValue(true)
+	})
 
-		call.This.Set("registerTimeTickHandler", func(args goja.FunctionCall) goja.Value {
-			if len(args.Arguments) != 1 {
-				return ret.jsRuntime.ToValue(false)
+	meshAPIObj.Set("registerPeerDisappearedHandler", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 1 {
+			return ret.jsRuntime.ToValue(false)
+		}
+		f, ok := goja.AssertFunction(args.Arguments[0])
+		if !ok {
+			return ret.jsRuntime.ToValue(false)
+		}
+		meshAPI.RegisterPeerDisappearedHandler(func(id NetworkID) {
+			if _, err := f(args.This, ret.jsRuntime.ToValue(string(id))); err != nil {
+				logger.Println(err.Error())
 			}
-			f, ok := goja.AssertFunction(args.Arguments[0])
-			if !ok {
-				return ret.jsRuntime.ToValue(false)
-			}
-
-			api.RegisterTimeTickHandler(func(ts NetworkTime) {
-				if _, err := f(args.This, ret.jsRuntime.ToValue(float64(ts))); err != nil {
-					logger.Println(err.Error())
-				}
-			})
-			return ret.jsRuntime.ToValue(true)
 		})
+		return ret.jsRuntime.ToValue(true)
+	})
 
-		call.This.Set("registerUserDataUpdateHandler", func(args goja.FunctionCall) goja.Value {
-			if len(args.Arguments) != 1 {
-				return ret.jsRuntime.ToValue(false)
-			}
-			_, ok := goja.AssertFunction(args.Arguments[0])
-			if !ok {
-				return ret.jsRuntime.ToValue(false)
-			}
-
-			return ret.jsRuntime.ToValue(true)
-		})
-
-		call.This.Set("getMyID", func(goja.FunctionCall) goja.Value {
-			return ret.jsRuntime.ToValue(string(api.GetMyID()))
-		})
-		call.This.Set("sendMessage", func(args goja.FunctionCall) goja.Value {
-			if len(args.Arguments) != 2 {
-				panic(ret.jsRuntime.ToValue("id as string and data as string are required"))
-			}
-			api.SendMessage(
-				NetworkID(args.Arguments[0].String()),
-				NetworkMessage(args.Arguments[1].String()),
-			)
-			return goja.Undefined()
-		})
-		type debugDataStruct struct {
-			Message string
+	meshAPIObj.Set("registerTimeTickHandler", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 1 {
+			return ret.jsRuntime.ToValue(false)
+		}
+		f, ok := goja.AssertFunction(args.Arguments[0])
+		if !ok {
+			return ret.jsRuntime.ToValue(false)
 		}
 
-		call.This.Set("setDebugMessage", func(args goja.FunctionCall) goja.Value {
-			if len(args.Arguments) != 1 {
-				panic(ret.jsRuntime.ToValue("serialised JSON string is needed"))
+		meshAPI.RegisterTimeTickHandler(func(ts NetworkTime) {
+			if _, err := f(args.This, ret.jsRuntime.ToValue(float64(ts))); err != nil {
+				logger.Println(err.Error())
 			}
-			api.SendDebugData(json.RawMessage(args.Arguments[0].String()))
-			return goja.Undefined()
+		})
+		return ret.jsRuntime.ToValue(true)
+	})
+
+	meshAPIObj.Set("getMyID", func(goja.FunctionCall) goja.Value {
+		return ret.jsRuntime.ToValue(string(meshAPI.GetMyID()))
+	})
+	meshAPIObj.Set("sendMessage", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 2 {
+			panic(ret.jsRuntime.ToValue("id as string and data as string are required"))
+		}
+		meshAPI.SendMessage(
+			NetworkID(args.Arguments[0].String()),
+			NetworkMessage(args.Arguments[1].String()),
+		)
+		return goja.Undefined()
+	})
+
+	meshAPIObj.Set("setDebugMessage", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 1 {
+			panic(ret.jsRuntime.ToValue("serialised JSON string is needed"))
+		}
+		meshAPI.SendDebugData(json.RawMessage(args.Arguments[0].String()))
+		return goja.Undefined()
+	})
+	ret.jsRuntime.Set("meshAPI", meshAPIObj)
+
+	frontendAPIObj := ret.jsRuntime.NewObject()
+	frontendAPIObj.Set("registerUserDataUpdateHandler", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 1 {
+			return ret.jsRuntime.ToValue(false)
+		}
+		f, ok := goja.AssertFunction(args.Arguments[0])
+		if !ok {
+			return ret.jsRuntime.ToValue(false)
+		}
+
+		frontendAPI.RegisterUserDataUpdateHandler(func(d FrontendUserDataType) {
+			if _, err := f(args.This, ret.jsRuntime.ToValue(d)); err != nil {
+				logger.Println(err.Error())
+			}
 		})
 
-		return nil
-	}
+		return ret.jsRuntime.ToValue(true)
+	})
 
-	ret.jsRuntime.Set("MeshAPI", APIContructor)
+	frontendAPIObj.Set("handleUpdate", func(args goja.FunctionCall) goja.Value {
+		if len(args.Arguments) != 1 {
+			panic(ret.jsRuntime.ToValue("pass single object with update data"))
+		}
+		ob := FrontEndUpdateObject{}
+		if err := ret.jsRuntime.ExportTo(args.Arguments[0], &ob); err != nil {
+			panic(ret.jsRuntime.ToValue(err.Error()))
+		}
+		frontendAPI.HandleUpdate(ob)
+		return goja.Undefined()
+	})
+
+	ret.jsRuntime.Set("frontendAPI", frontendAPIObj)
+
 	ret.jsRuntime.Set("log", func(args goja.FunctionCall) goja.Value {
 		s := ""
 		for _, a := range args.Arguments {

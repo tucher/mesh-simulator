@@ -140,12 +140,12 @@
 			// popupHTML += "<b>Meta</b><br/>"
 			// for(var k in thisData.Meta) popupHTML += `<b>${k}</b> ${thisData.Meta[k]}<br/>`;
 			
-			if(thisData.DebugData) {
-				var popupHTML = `<b>${thisData.Meta.label}</b><br/><br/>`;
+			if(thisData.CurrentState) {
+				var popupHTML = `<b>${thisData.Meta.label}</b><br/><br/><b>${thisData.CurrentState.ThisPeer.Data.Message}</b><br/><br/>`;
 				let toSort = [];
-				for(var k in thisData.DebugData.PeersState) {
-					let updTime = (thisData.DebugData.MyTS - thisData.DebugData.PeersState[k].UpdateTS)/1000000;
-					toSort.push({text: `${thisData.DebugData.PeersState[k].UserState.Message}   (${(updTime).toFixed(0)}s ago)<br/>`, ago: updTime})
+				for(var k in thisData.CurrentState.AllPeers) {
+					let updTime = (thisData.CurrentState.ThisPeer.TS - thisData.CurrentState.AllPeers[k].TS)/1000000;
+					toSort.push({text: `${thisData.CurrentState.AllPeers[k].Data.Message}   (${(updTime).toFixed(0)}s ago)<br/>`, ago: updTime})
 				}
 				toSort.sort((a1,a2)=>{return a1.ago>a2.ago});
 				for(let s of toSort) {
@@ -153,9 +153,9 @@
 				}
 				curEnt.marker.setPopupContent(popupHTML);
 			}
-			// for(var k in thisData.DebugData.PeersState) {
-			// 	let updTime = (thisData.DebugData.MyTS - thisData.DebugData.PeersState[k].UpdateTS)/1000000;
-			// 	popupHTML += `${thisData.DebugData.PeersState[k].UserState.Message}   (${(updTime).toFixed(0)}s ago)<br/>`;
+			// for(var k in thisData.CurrentState.PeersState) {
+			// 	let updTime = (thisData.CurrentState.MyTS - thisData.CurrentState.PeersState[k].UpdateTS)/1000000;
+			// 	popupHTML += `${thisData.CurrentState.PeersState[k].UserState.Message}   (${(updTime).toFixed(0)}s ago)<br/>`;
 			// }
 			
 			curEnt.marker.setLatLng(new L.LatLng(thisData.Coord[0], thisData.Coord[1])); 
